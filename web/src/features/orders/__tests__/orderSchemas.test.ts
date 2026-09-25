@@ -8,6 +8,7 @@ const order = {
   status: 'Open',
   total: 90000,
   createdAt: '2026-09-25T02:00:00Z',
+  paidAt: null,
   version: 812,
   items: [
     { id: 'i1', menuItemId: 'm1', name: 'Cà phê sữa đá', unitPrice: 30000, qty: 3, status: 'Pending' },

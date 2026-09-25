@@ -12,6 +12,19 @@ const ShiftSchema = z.object({
 })
 export type Shift = z.infer<typeof ShiftSchema>
 
+/** Phản hồi đóng ca: đối chiếu tiền trong két. `variance` = đếm được − dự kiến (âm = thiếu). */
+export const ShiftSummarySchema = ShiftSchema.extend({
+  closedAt: z.string(),
+  countedCash: z.number(),
+  expectedCash: z.number(),
+  variance: z.number(),
+  orderCount: z.number().int(),
+  revenue: z.number(),
+  cashTotal: z.number(),
+  transferTotal: z.number(),
+})
+export type ShiftSummary = z.infer<typeof ShiftSummarySchema>
+
 const CurrentShiftSchema = z.object({ shiftId: z.string(), openedAt: z.string() })
 
 /** Ca đang mở theo cashier (204 → null). */
@@ -49,7 +62,8 @@ export function useOpenShift() {
 export function useCloseShift() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (shiftId: string) => api(`/api/shifts/${shiftId}/close`, { method: 'POST' }),
+    mutationFn: async ({ shiftId, countedCash }: { shiftId: string; countedCash: number }) =>
+      ShiftSummarySchema.parse(await api(`/api/shifts/${shiftId}/close`, { method: 'POST', body: { countedCash } })),
     onSuccess: () => {
       queryClient.setQueryData(queryKeys.shift.current, null)
       void queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })

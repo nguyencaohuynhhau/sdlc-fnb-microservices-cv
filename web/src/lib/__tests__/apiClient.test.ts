@@ -9,10 +9,15 @@ const session = (n: number) => ({ accessToken: `access-${n}`, refreshToken: `ref
 
 // Server giả: access-1 đã hết hạn (401), refresh đổi sang access-2 sau một nhịp trễ.
 function fakeServer() {
-  const calls: { url: string; auth: string | undefined; body: unknown }[] = []
+  const calls: { url: string; auth: string | undefined; key: string | undefined; body: unknown }[] = []
   const fetchMock = vi.fn(async (url: string, init: RequestInit = {}) => {
     const headers = (init.headers ?? {}) as Record<string, string>
-    calls.push({ url, auth: headers.Authorization, body: init.body ? JSON.parse(String(init.body)) : undefined })
+    calls.push({
+      url,
+      auth: headers.Authorization,
+      key: headers['Idempotency-Key'],
+      body: init.body ? JSON.parse(String(init.body)) : undefined,
+    })
     if (url === '/api/auth/refresh') {
       await new Promise((r) => setTimeout(r, 20))
       return json(200, session(2))
@@ -56,6 +61,18 @@ test('apiClient_ParallelRefresh_SingleFlight', async () => {
   expect(results).toHaveLength(3)
   expect(calls.filter((c) => c.url === '/api/auth/refresh')).toHaveLength(1)
   expect(calls.filter((c) => c.auth === 'Bearer access-2')).toHaveLength(3)
+})
+
+test('apiClient_401Retry_KeepsSameIdempotencyKey', async () => {
+  const calls = fakeServer()
+
+  await api('/api/payments', { method: 'POST', body: { orderId: 'o-1' }, idempotencyKey: 'key-1' })
+
+  // Gửi lại mà mất/đổi khoá thì server coi là lần thu mới → nguy cơ thu hai lần.
+  expect(calls.filter((c) => c.url === '/api/payments').map((c) => [c.auth, c.key])).toEqual([
+    ['Bearer access-1', 'key-1'],
+    ['Bearer access-2', 'key-1'],
+  ])
 })
 
 test('apiClient_ProblemDetails_ThrowsApiErrorWithDetail', async () => {
