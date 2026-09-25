@@ -33,7 +33,9 @@ public static class MessagingDbConfig
 
             foreach (var p in entity.GetProperties())
             {
-                p.SetColumnName(ToSnake(p.Name));
+                // Row version kiểu uint phải map vào cột hệ thống xmin; đổi tên sẽ tạo cột thật
+                // không bao giờ tự đổi và concurrency token mất tác dụng trong im lặng.
+                p.SetColumnName(p.IsConcurrencyToken && p.ClrType == typeof(uint) ? "xmin" : ToSnake(p.Name));
             }
 
             foreach (var k in entity.GetKeys())
