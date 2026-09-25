@@ -1,0 +1,156 @@
+name: AI-Native SDLC
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Cổng 1 — Evals: quy trình có còn nguyên vẹn không?
+  # Chạy trước và nhanh nhất: nếu Agent đã nới guard hay mở CORS thì biết ngay,
+  # không cần chờ build hết các workspace.
+  # ───────────────────────────────────────────────────────────────────────────
+  evals:
+    name: Evals (rào cản + chuỗi hiện vật)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node docs/evals/run.mjs
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Cổng 2 — Rà soát bảo mật (Agent 6 trong sơ đồ)
+  # ───────────────────────────────────────────────────────────────────────────
+  security:
+    name: Rà soát bảo mật
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Không có file .env bị commit
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$'; then
+            echo "::error::File .env bị commit — xem AGENTS.md §3.1"
+            exit 1
+          fi
+
+      - name: Quét secret trong diff
+        if: github.event_name == 'pull_request'
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          # Chỉ soi dòng THÊM MỚI, tránh báo động giả từ lịch sử.
+          ADDED=$(git diff "$BASE" "$HEAD" -- . ':(exclude)*.md' | grep '^+' | grep -v '^+++' || true)
+          FOUND=0
+          check() {
+            if echo "$ADDED" | grep -qEi "$1"; then
+              echo "::error::Nghi vấn secret trong diff: $2"
+              FOUND=1
+            fi
+          }
+          check 'mongodb(\+srv)?://[^ "'"'"']*:[^ "'"'"']*@' 'connection string có mật khẩu'
+          check 'JWT_SECRET\s*[:=]\s*["'"'"'][^"'"'"']{8,}' 'JWT_SECRET hardcode'
+          check '(api[_-]?key|secret[_-]?key|access[_-]?token)\s*[:=]\s*["'"'"'][A-Za-z0-9/+_-]{20,}' 'API key hardcode'
+          check "origin\s*:\s*['\"]\\*['\"]" 'CORS wildcard'
+          exit $FOUND
+
+      # <MẪU> Liệt kê đúng các workspace của dự án (khớp sdlc.config.json).
+      - name: Audit dependency
+        run: |
+          FOUND=0
+          for ws in backend web; do
+            [ -f "$ws/package-lock.json" ] || continue
+            echo "── $ws"
+            (cd "$ws" && npm audit --omit=dev --audit-level=high) || FOUND=1
+          done
+          if [ "$FOUND" = 1 ]; then
+            echo "::error::npm audit tìm thấy lỗ hổng mức high trở lên"
+            exit 1
+          fi
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Cổng 3 — Chất lượng từng workspace (Definition of Done, AGENTS.md §4)
+  #
+  # <MẪU> Sửa `matrix.workspace` cho khớp khoá trong sdlc.config.json.
+  # Workspace nào cần dịch vụ ngoài để chạy e2e thì bỏ comment khối `services`
+  # và `env` bên dưới, hoặc tách riêng thành một job của nó.
+  # ───────────────────────────────────────────────────────────────────────────
+  quality:
+    name: Chất lượng (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [backend, web]
+    # services:
+    #   mongodb:
+    #     image: mongo:7
+    #     ports: ['27017:27017']
+    #     options: >-
+    #       --health-cmd "mongosh --eval 'db.runCommand(\"ping\")'"
+    #       --health-interval 10s --health-timeout 5s --health-retries 5
+    # env:
+    #   DATABASE_URL: mongodb://localhost:27017/ci
+    #   JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.workspace }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ matrix.workspace }}
+      - name: Lint (ratchet — chỉ đỏ khi có lỗi MỚI)
+        run: node scripts/sdlc/lint-ratchet.mjs ${{ matrix.workspace }}
+      - name: Build (type error là fail)
+        run: npm run build
+        working-directory: ${{ matrix.workspace }}
+      - name: Unit test (bỏ qua nếu workspace không có script test)
+        run: npm test --if-present
+        working-directory: ${{ matrix.workspace }}
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Cổng 4 — PR phải gắn với một hiện vật intent
+  # ───────────────────────────────────────────────────────────────────────────
+  artifact-chain:
+    name: Chuỗi hiện vật
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: PR phải tham chiếu docs/intents/<id>/
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if echo "$TITLE" | grep -qiE '^(hotfix|revert|chore\(deps\))'; then
+            echo "Bỏ qua: hotfix/revert/deps được miễn chuỗi hiện vật."
+            exit 0
+          fi
+          ID=$(echo "$BODY" | grep -oE 'docs/intents/[0-9]{6}-[a-z0-9-]+' | head -1 || true)
+          if [ -z "$ID" ]; then
+            echo "::error::Mô tả PR không tham chiếu tới docs/intents/<id>/. Xem docs/AI-NATIVE-SDLC.md"
+            exit 1
+          fi
+          echo "Intent: $ID"
+          for f in intent.md spec.md plan.md; do
+            if [ ! -f "$ID/$f" ]; then
+              echo "::error::Thiếu $ID/$f — chuỗi hiện vật chưa đầy đủ"
+              exit 1
+            fi
+          done
+          echo "✅ Chuỗi hiện vật đầy đủ."

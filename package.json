@@ -1,0 +1,11 @@
+{
+  "name": "sdlc-base",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bộ khung AI-Native SDLC — copy vào dự án và merge phần scripts vào package.json sẵn có.",
+  "scripts": {
+    "sdlc:verify": "node scripts/sdlc/verify.mjs",
+    "sdlc:evals": "node docs/evals/run.mjs",
+    "sdlc:lint-baseline": "node scripts/sdlc/lint-ratchet.mjs --all --update-baseline"
+  }
+}

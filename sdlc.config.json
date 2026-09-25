@@ -1,0 +1,65 @@
+{
+  "_comment": [
+    "Điểm cấu hình DUY NHẤT của AI-Native SDLC. Mọi thứ project-specific nằm ở đây;",
+    "các script trong scripts/sdlc/ và docs/evals/run.mjs đọc file này và không hardcode gì.",
+    "Sửa file này khi áp dụng bộ khung vào một dự án mới. Xem README.md."
+  ],
+
+  "_comment_workspaces": [
+    "Mỗi khoá = một thư mục con ở gốc repo có package.json riêng.",
+    "gates = các cổng chất lượng chạy TUẦN TỰ với cwd đặt tại thư mục workspace.",
+    "Thứ tự trong object là thứ tự chạy — đặt cổng nhanh/rẻ lên trước để fail sớm.",
+    "Dự án chỉ có MỘT package.json ở gốc: dùng khoá \".\" làm tên workspace."
+  ],
+  "workspaces": {
+    "backend": {
+      "gates": {
+        "lint": "node ../scripts/sdlc/lint-ratchet.mjs backend",
+        "build": "npm run build",
+        "test": "npm test"
+      },
+      "e2eGate": "npm run test:e2e",
+      "lintReportCommand": "npm run lint:check -- -f json"
+    },
+    "web": {
+      "gates": {
+        "lint": "node ../scripts/sdlc/lint-ratchet.mjs web",
+        "build": "npm run build"
+      },
+      "lintReportCommand": "npm run lint -- -f json"
+    }
+  },
+
+  "_comment_e2eGate": [
+    "Lệnh e2e chỉ chạy khi thay đổi chạm e2eTriggers, hoặc khi ép bằng `--e2e`.",
+    "Tách khỏi gates vì e2e thường cần dịch vụ ngoài (DB, queue) nên không chạy mặc định.",
+    "Không có e2e thì bỏ hẳn khoá này."
+  ],
+  "_comment_lintReportCommand": [
+    "Lệnh eslint xuất JSON mà lint-ratchet.mjs gọi để đếm lỗi theo từng file.",
+    "BẮT BUỘC là lệnh CHỈ ĐỌC — không được có `--fix`. Một cổng kiểm tra đi sửa",
+    "working tree là cách nhanh nhất để một lần verify 'xanh' trở nên vô nghĩa.",
+    "Workspace không lint thì bỏ khoá này (và bỏ cả gate lint)."
+  ],
+
+  "_comment_e2eTriggers": [
+    "Prefix đường dẫn mà khi chạm vào thì BẮT BUỘC chạy e2e. Chọn những vùng mà",
+    "một lỗi im lặng sẽ làm hỏng dữ liệu hoặc thủng xác thực: tiền, tồn kho, auth, schema."
+  ],
+  "e2eTriggers": [
+    "backend/src/auth",
+    "backend/src/schemas"
+  ],
+
+  "_comment_requiredTests": [
+    "Các file test hồi quy KHÔNG ĐƯỢC biến mất (eval E05). Agent bị dồn ép hay 'dọn dẹp'",
+    "đúng cái test đang chặn nó. Liệt kê ở đây những test mua bằng một sự cố thật."
+  ],
+  "requiredTests": [],
+
+  "_comment_codeExtensions": "Đuôi file được coi là mã nguồn — quyết định cái gì kích hoạt cổng chặn commit.",
+  "codeExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json", ".css", ".scss", ".html", ".vue", ".svelte", ".py", ".go", ".rs"],
+
+  "_comment_ignoredPrefixes": "Thư mục không bao giờ tính là mã nguồn (tài liệu, build output, hiện vật).",
+  "ignoredPrefixes": ["node_modules/", "docs/", ".brain/", ".claude/", ".agents/", "dist/", "build/", ".next/", "coverage/", ".git/", "target/", "__pycache__/"]
+}
