@@ -8,6 +8,9 @@ public interface IShiftRepository
 
     Task<Shift?> FindAsync(Guid id, CancellationToken ct);
 
+    /// <summary>Đọc ca với <c>SELECT … FOR UPDATE</c> — phải gọi trong transaction.</summary>
+    Task<Shift?> LockAsync(Guid id, CancellationToken ct);
+
     void Add(Shift shift);
 
     /// <summary>

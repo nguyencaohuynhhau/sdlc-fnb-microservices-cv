@@ -2,10 +2,11 @@
 id: 01-260925-fnb-pos-core
 intent: ./intent.md
 spec: ./spec.md
-status: planned
+status: building
 branch: feat/01-260925-fnb-pos-core-slice-b
 generated_by: /sdlc:plan
 created: 2026-09-25
+approved: 2026-09-25 (người điều phối, qua /sdlc:build)
 slice: B — Tiền (spec §11). Lát A đã ship (PR #1, plan lưu ở plan-slice-a.md). Lát C/D có plan riêng sau khi B ship.
 ---
 
@@ -38,10 +39,10 @@ set -a && . ./.env && set +a && npm run sdlc:verify -- --all --e2e   # + integra
 
 Cộng thêm bằng chứng cụ thể của lát này:
 
-- [ ] `backend/tests/Cashier.IntegrationTests/PaymentIdempotencyTests.cs` — `Payments_ConcurrentSameKey_CreatesOneLedgerEntry`: 5 request song song cùng key → cả 5 nhận 200 với **body giống hệt**, bảng `payments` đúng **1** dòng. Đỏ khi bỏ `ON CONFLICT DO NOTHING` / bỏ bước đọc lại key (tiêu chí **#5**)
-- [ ] Cùng file: `Payments_SameKeyDifferentBody_Returns422`, `Payments_MissingKey_Returns400`, `Payments_TotalMismatch_Returns409` (detail có tổng thật, không có dòng `payments`), `Payments_NoOpenShift_Returns409`, `Payments_LostReply_RetrySameKeyCompletes`, `Payments_OrderingUnavailable_Returns503_NoLedgerEntry`, `Payments_TwoKeysSameOrder_OnlyOneCompleted`
-- [ ] `backend/tests/Cashier.IntegrationTests/ShiftTests.cs` — `CloseShift_ReconcilesCash` (quỹ đầu 0 + 2 tiền mặt + 1 chuyển khoản, đếm lệch 5.000 → `expectedCash`, `variance = -5000`, `orderCount`, `revenue`, `cashTotal`, `transferTotal` đúng) và `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose` (payment đang giữ ca + đóng ca chen vào → đóng ca **chờ** và tính cả payment đó). Đỏ khi bỏ `FOR SHARE`/`FOR UPDATE` (tiêu chí **#8**)
-- [ ] `backend/tests/Ordering.IntegrationTests/MarkPaidTests.cs` — gọi gRPC thật qua TestServer: `MarkPaid_TotalMismatch_ReturnsActualTotal`, `MarkPaid_SamePaymentIdTwice_IsIdempotent`, `MarkPaid_OtherPaymentId_AlreadyPaid`, `MarkPaid_WritesOrderPaidToOutbox`, `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds`, `MarkPaid_ConcurrentDifferentPayments_OnlyOneWins`, `MarkPaid_WithoutToken_Unauthenticated`, `MarkPaid_TotalWithDifferentScale_Matches`, `Kitchen_PaidOrderWithPendingItems_StillVisible`
+- [x] `backend/tests/Cashier.IntegrationTests/PaymentIdempotencyTests.cs` — `Payments_ConcurrentSameKey_CreatesOneLedgerEntry`: 5 request song song cùng key → cả 5 nhận 200 với **body giống hệt**, bảng `payments` đúng **1** dòng. Đỏ khi bỏ `ON CONFLICT DO NOTHING` / bỏ bước đọc lại key (tiêu chí **#5**)
+- [x] Cùng file: `Payments_SameKeyDifferentBody_Returns422`, `Payments_MissingKey_Returns400`, `Payments_TotalMismatch_Returns409` (detail có tổng thật, không có dòng `payments`), `Payments_NoOpenShift_Returns409`, `Payments_LostReply_RetrySameKeyCompletes`, `Payments_OrderingUnavailable_Returns503_NoLedgerEntry`, `Payments_TwoKeysSameOrder_OnlyOneCompleted`
+- [x] `backend/tests/Cashier.IntegrationTests/ShiftTests.cs` — `CloseShift_ReconcilesCash` (quỹ đầu 0 + 2 tiền mặt + 1 chuyển khoản, đếm lệch 5.000 → `expectedCash`, `variance = -5000`, `orderCount`, `revenue`, `cashTotal`, `transferTotal` đúng) và `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose` (payment đang giữ ca + đóng ca chen vào → đóng ca **chờ** và tính cả payment đó). Đỏ khi bỏ `FOR SHARE`/`FOR UPDATE` (tiêu chí **#8**)
+- [x] `backend/tests/Ordering.IntegrationTests/MarkPaidTests.cs` — gọi gRPC thật qua TestServer: `MarkPaid_TotalMismatch_ReturnsActualTotal`, `MarkPaid_SamePaymentIdTwice_IsIdempotent`, `MarkPaid_OtherPaymentId_AlreadyPaid`, `MarkPaid_WritesOrderPaidToOutbox`, `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds`, `MarkPaid_ConcurrentDifferentPayments_OnlyOneWins`, `MarkPaid_WithoutToken_Unauthenticated`, `MarkPaid_TotalWithDifferentScale_Matches`, `Kitchen_PaidOrderWithPendingItems_StillVisible`
 - [ ] `web/e2e/order-to-payment.spec.ts` — (a) luồng đầy đủ spec §7: đăng nhập → mở ca → 3 món → bếp thấy ≤ 2s → "Xong" → thu tiền mặt → đóng ca, nhập tiền đếm, thấy tổng kết; (b) biến thể **20 phần / ≥ 10 dòng**: từ bấm "Xác nhận thu" tới biên nhận hiện **< 2000ms**, ghi vào `docs/evidence/01-260925-fnb-pos-core/b-latency.log` (tiêu chí **#4**). Chạy **qua gateway 8080** (nginx 5173 → gateway)
 - [ ] Ảnh trong `docs/evidence/01-260925-fnb-pos-core/`: `b-payment-form.png`, `b-payment-receipt.png`, `b-total-mismatch-409.png` (409 **thật**: tab thứ hai thêm món trong lúc tab một đang mở form thu), `b-close-shift-summary.png`, `b-close-shift-open-orders-warning.png`, `b-payment-offline.png`
 - [ ] Các test trong `requiredTests` (4 cũ + 2 mới) tồn tại và xanh; `ConcurrencyTests`, `OutboxTests`, `AuthTests` của lát A **không** đổi kỳ vọng
@@ -77,7 +78,7 @@ Cộng thêm bằng chứng cụ thể của lát này:
 | `src/Ordering/Ordering.Infrastructure/OrderRepository.cs` | sửa | lọc Active (Open, hoặc Paid còn món Pending/Preparing) |
 | `src/Ordering/Ordering.Infrastructure/OrderingDbContext.cs` | sửa | map `paid_at`, `paid_payment_id` unique-nullable |
 | `src/Ordering/Ordering.Infrastructure/Migrations/<ts>_OrderPaid.cs` (+ Designer, snapshot) | tạo | migration **chỉ thêm cột** |
-| `src/Ordering/Ordering.Api/Ordering.Api.csproj` | sửa | `Grpc.AspNetCore`; `<Protobuf Include="..\..\Shared\Protos\order_payments.proto" GrpcServices="Server" />` |
+| `src/Ordering/Ordering.Api/Ordering.Api.csproj` | sửa | `Grpc.AspNetCore`; `<Protobuf Include="..\..\Shared\Protos\order_payments.proto" GrpcServices="Server" />` — _thực tế: `Both`, vì sinh client lại ở project test sẽ trùng kiểu message với `Ordering.Api` (CS0436); client dư là một lớp không ai gọi ở prod_ |
 | `src/Ordering/Ordering.Api/Grpc/OrderPaymentsService.cs` | tạo | `[Authorize(Roles = "Cashier,Owner")]`, parse tiền invariant, `NotFound` → `RpcException(StatusCode.NotFound)` |
 | `src/Ordering/Ordering.Api/Program.cs` | sửa | `AddGrpc()`, `MapGrpcService<OrderPaymentsService>()` |
 | `src/Ordering/Ordering.Api/Controllers/OrdersController.cs` | sửa | `GET /api/orders?active=true`; `/api/kitchen/orders` dùng Active |
@@ -105,7 +106,8 @@ Cộng thêm bằng chứng cụ thể của lát này:
 | `tests/Ordering.UnitTests/OrderTests.cs` | sửa | luật `MarkPaid`; `SetItemStatus` khi Paid được, `AddItem`/`CancelItem` khi Paid bị chặn |
 | `tests/Cashier.UnitTests/ShiftTests.cs` | sửa | `Close_ComputesExpectedAndVariance`; cập nhật lời gọi `Close` cũ |
 | `tests/Ordering.IntegrationTests/MarkPaidTests.cs` | tạo | xem mục 0 |
-| `tests/Ordering.IntegrationTests/Ordering.IntegrationTests.csproj` | sửa | `Grpc.Tools` + `<Protobuf ... GrpcServices="Client" />` (runtime gRPC đến qua `Ordering.Api`) |
+| ~~`tests/Ordering.IntegrationTests/Ordering.IntegrationTests.csproj`~~ | _không chạm_ | _thực tế: client lấy từ `Ordering.Api` (xem dòng csproj trên)_ |
+| `tests/Ordering.IntegrationTests/OrderingFixture.cs` | sửa | _thực tế: tách `TokenFor(role)` để gắn JWT vào metadata gRPC_ |
 | `tests/Cashier.IntegrationTests/PaymentIdempotencyTests.cs` | tạo | xem mục 0 |
 | `tests/Cashier.IntegrationTests/FakeOrderPayments.cs` | tạo | giả ordering: nhớ `orderId → paymentId` (cùng luật idempotent), trễ cấu hình được, chế độ "làm xong rồi mất phản hồi", "Unavailable" |
 | `tests/Cashier.IntegrationTests/CashierFixture.cs` | sửa | `ConfigureTestServices` thay `IOrderPayments` bằng fake |
@@ -142,21 +144,22 @@ Cộng thêm bằng chứng cụ thể của lát này:
 
 ### Nhóm B0 — Khung
 
-- [ ] **B0.1** `sdlc.config.json` theo bảng 1a. → kiểm chứng: `npm run sdlc:evals` xanh; sửa một dòng trong `backend/src/Cashier/Cashier.Api` rồi `npm run sdlc:verify` in e2e được bật.
-- [ ] **B0.2** Thêm 4 gói gRPC vào `Directory.Packages.props` (tra version stable mới nhất bằng `dotnet package search <tên> --exact-match`, ghim cứng). → kiểm chứng: `npm run sdlc:evals` — P04 xanh.
+- [x] **B0.1** `sdlc.config.json` theo bảng 1a. → kiểm chứng: `npm run sdlc:evals` xanh; sửa một dòng trong `backend/src/Cashier/Cashier.Api` rồi `npm run sdlc:verify` in e2e được bật.
+  _Thực tế: `requiredTests` chỉ thêm được khi file test đã tồn tại (eval E05 đỏ nếu thiếu) → `MarkPaidTests.cs` thêm ở B3, `PaymentIdempotencyTests.cs` ở B5._
+- [x] **B0.2** Thêm 4 gói gRPC vào `Directory.Packages.props` (tra version stable mới nhất bằng `dotnet package search <tên> --exact-match`, ghim cứng). → kiểm chứng: `npm run sdlc:evals` — P04 xanh. _Ghim: Grpc.* 2.84.0, Google.Protobuf 3.36.2._
 
 ### Nhóm B — Backend
 
-- [ ] **B1** Ordering domain: `Order.MarkPaid(paymentId, expectedTotal, now)`:
+- [x] **B1** Ordering domain: `Order.MarkPaid(paymentId, expectedTotal, now)`:
   đã Paid **cùng** `paymentId` → `Ok` không làm gì; Paid khác `paymentId` → `AlreadyPaid`;
   `Cancelled` → `OrderCancelled`; `Total != expectedTotal` (so `decimal`) → `TotalMismatch(Total)`;
   còn lại → `Status = Paid`, `PaidAt`, `PaidPaymentId`, `Touch`, `Raise(new OrderPaid(OrderId, ShiftId, PaymentId, Total, PaidAt, Lines[(MenuItemId, Qty)] của món chưa huỷ))`.
   `SetItemStatus` cho phép khi `Open` **hoặc** `Paid`; `AddItem`/`CancelItem`/`Cancel` vẫn chỉ khi `Open`.
   `Topics.OrderPaid`. → kiểm chứng: `npm --prefix backend test` — ca mới trong `OrderTests` xanh, đỏ khi bỏ nhánh "cùng paymentId".
-- [ ] **B2** Migration ordering (`paid_at timestamptz null`, `paid_payment_id uuid null` unique) và cashier (`payments`, `idempotency_keys(key, endpoint) pk`, `request_hash`, `response_status`, `response_body jsonb`, `created_at`). Ghi lệch spec vào `schema.md`: **chỉ dòng `Completed` được lưu** — `Pending` chỉ tồn tại trong transaction chưa commit nên không bao giờ nhìn thấy được; cột `status` và index partial giữ nguyên như spec làm chốt chặn thứ hai. → kiểm chứng: `dotnet ef migrations script` của mỗi dịch vụ chỉ có `ADD COLUMN`/`CREATE TABLE`/`CREATE INDEX`, không `DROP`/`ALTER … TYPE`.
-- [ ] **B3** Proto + server: `order_payments.proto` (`MarkPaidRequest { string order_id; string expected_total; string payment_id; }`, `MarkPaidReply { oneof result { Ok ok; TotalMismatch total_mismatch; AlreadyPaid already_paid; OrderCancelled order_cancelled; } }`, `TotalMismatch { string actual_total; }`). `OrderPaymentsService` parse `decimal.Parse(s, CultureInfo.InvariantCulture)`, trả `actual_total` bằng `ToString("0.00", InvariantCulture)`. `OrderService.MarkPaidAsync`: vòng tối đa 3 lần {đọc đơn → `MarkPaid` → `TrySaveAsync`}; xung đột xmin → đọc lại, kiểm lại; hết lượt → `RpcException(Aborted)`. Notify `orderUpdated` **sau** commit. Kestrel hai endpoint qua env compose (1a). → kiểm chứng: `MarkPaidTests` xanh; `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds` dùng một `SaveChangesInterceptor` của test chèn `UPDATE orders … ` từ connection khác trước lần lưu đầu → buộc xung đột thật; đỏ khi hạ retry xuống 1.
-- [ ] **B4** Scope "Active": `GET /api/orders?active=true` (giữ `?status=` cho tương thích) và `/api/kitchen/orders` = Open **hoặc** (Paid **và** còn món `Pending`/`Preparing`). → kiểm chứng: `Kitchen_PaidOrderWithPendingItems_StillVisible` xanh; bếp PATCH món của đơn Paid → 200.
-- [ ] **B5** Cashier thu tiền — `PayOrderHandler`, **một** transaction Postgres:
+- [x] **B2** Migration ordering (`paid_at timestamptz null`, `paid_payment_id uuid null` unique) và cashier (`payments`, `idempotency_keys(key, endpoint) pk`, `request_hash`, `response_status`, `response_body jsonb`, `created_at`). Ghi lệch spec vào `schema.md`: **chỉ dòng `Completed` được lưu** — `Pending` chỉ tồn tại trong transaction chưa commit nên không bao giờ nhìn thấy được; cột `status` và index partial giữ nguyên như spec làm chốt chặn thứ hai. → kiểm chứng: `dotnet ef migrations script` của mỗi dịch vụ chỉ có `ADD COLUMN`/`CREATE TABLE`/`CREATE INDEX`, không `DROP`/`ALTER … TYPE`.
+- [x] **B3** Proto + server: `order_payments.proto` (`MarkPaidRequest { string order_id; string expected_total; string payment_id; }`, `MarkPaidReply { oneof result { Ok ok; TotalMismatch total_mismatch; AlreadyPaid already_paid; OrderCancelled order_cancelled; } }`, `TotalMismatch { string actual_total; }`). `OrderPaymentsService` parse `decimal.Parse(s, CultureInfo.InvariantCulture)`, trả `actual_total` bằng `ToString("0.00", InvariantCulture)`. `OrderService.MarkPaidAsync`: vòng tối đa 3 lần {đọc đơn → `MarkPaid` → `TrySaveAsync`}; xung đột xmin → đọc lại, kiểm lại; hết lượt → `RpcException(Aborted)`. Notify `orderUpdated` **sau** commit. Kestrel hai endpoint qua env compose (1a). → kiểm chứng: `MarkPaidTests` xanh; `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds` dùng một `SaveChangesInterceptor` của test chèn `UPDATE orders … ` từ connection khác trước lần lưu đầu → buộc xung đột thật; đỏ khi hạ retry xuống 1.
+- [x] **B4** Scope "Active": `GET /api/orders?active=true` (giữ `?status=` cho tương thích) và `/api/kitchen/orders` = Open **hoặc** (Paid **và** còn món `Pending`/`Preparing`). → kiểm chứng: `Kitchen_PaidOrderWithPendingItems_StillVisible` xanh; bếp PATCH món của đơn Paid → 200.
+- [x] **B5** Cashier thu tiền — `PayOrderHandler`, **một** transaction Postgres:
   1. `Idempotency-Key` thiếu / không phải UUID → `InvalidRequestException` 400 "Yêu cầu không hợp lệ." (log lý do phía server **không** kèm giá trị key).
   2. `request_hash = SHA-256("{OrderId}|{ExpectedTotal.ToString("0.00", Invariant)}|{Method}")` — chuẩn hoá scale để `45000` và `45000.00` không bị coi là khác.
   3. `INSERT INTO idempotency_keys (key, endpoint='POST /api/payments', request_hash) … ON CONFLICT DO NOTHING`. Request trùng key đang chạy song song sẽ **chờ** ở đây tới khi request đầu commit/rollback.
@@ -166,9 +169,9 @@ Cộng thêm bằng chứng cụ thể của lát này:
   7. `Ok` → insert `payments` (`id = key`, `status = Completed`), lưu phản hồi 200 vào `idempotency_keys`, COMMIT.
   Mọi lỗi ở bước 5–6 **rollback** cả dòng key → bấm lại cùng key vẫn chạy lại được.
   → kiểm chứng: `PaymentIdempotencyTests` xanh; đột biến bỏ `ON CONFLICT` → `ConcurrentSameKey` đỏ (500 / 2 dòng); đột biến lưu cả phản hồi lỗi → `LostReply` đỏ.
-- [ ] **B6** Đóng ca có đối chiếu: `POST /api/shifts/{id}/close` body `CloseShiftRequest([Range(typeof(decimal), "0", "1000000000")] decimal CountedCash)`. Handler: `SELECT … FOR UPDATE` ca → cộng payments của ca (`cashTotal`, `transferTotal`, `orderCount`) → `Shift.Close(countedCash, cashTotal, now)` (`ExpectedCash = OpeningFloat + cashTotal`, `Variance = CountedCash − ExpectedCash`) → trả `ShiftSummaryResponse` (trường của `Shift` + `OrderCount`, `Revenue`, `CashTotal`, `TransferTotal`). `ShiftClosed` mang thêm `CountedCash, ExpectedCash, Variance` cho lát D. → kiểm chứng: `CloseShift_ReconcilesCash`, `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose` (fake MarkPaid trễ 500ms; đóng ca gửi sau 100ms phải chờ và `cashTotal` gồm payment đó; đỏ khi bỏ khoá), `Close_ComputesExpectedAndVariance` xanh; các ca `ShiftTests` cũ chỉ đổi phần gửi body.
-- [ ] **B7** Nối dây: gRPC client + `ForwardAuthHandler`, route gateway `/api/payments`, compose (1a). → kiểm chứng: `GatewayTests` xanh; `docker compose up -d --build` → 8 container healthy; `curl` qua 8080 với token cashier: `POST /api/payments` thiếu key → 400.
-- [ ] **B8** Seeder: ca hôm qua có 6 đơn Paid (4 tiền mặt, 2 chuyển khoản) + payments tương ứng + đóng ca đếm lệch nhỏ; chạy 2 lần không nhân đôi; chuỗi "…, 3 open orders, 6 paid orders". → kiểm chứng: `SeederTests` xanh; `npm --prefix backend run seed` hai lần cùng output.
+- [x] **B6** Đóng ca có đối chiếu: `POST /api/shifts/{id}/close` body `CloseShiftRequest([Range(typeof(decimal), "0", "1000000000")] decimal CountedCash)`. Handler: `SELECT … FOR UPDATE` ca → cộng payments của ca (`cashTotal`, `transferTotal`, `orderCount`) → `Shift.Close(countedCash, cashTotal, now)` (`ExpectedCash = OpeningFloat + cashTotal`, `Variance = CountedCash − ExpectedCash`) → trả `ShiftSummaryResponse` (trường của `Shift` + `OrderCount`, `Revenue`, `CashTotal`, `TransferTotal`). `ShiftClosed` mang thêm `CountedCash, ExpectedCash, Variance` cho lát D. → kiểm chứng: `CloseShift_ReconcilesCash`, `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose` (fake MarkPaid trễ 500ms; đóng ca gửi sau 100ms phải chờ và `cashTotal` gồm payment đó; đỏ khi bỏ khoá), `Close_ComputesExpectedAndVariance` xanh; các ca `ShiftTests` cũ chỉ đổi phần gửi body.
+- [x] **B7** Nối dây: gRPC client + `ForwardAuthHandler`, route gateway `/api/payments`, compose (1a). → kiểm chứng: `GatewayTests` xanh; `docker compose up -d --build` → 8 container healthy; `curl` qua 8080 với token cashier: `POST /api/payments` thiếu key → 400.
+- [x] **B8** Seeder: ca hôm qua có 6 đơn Paid (4 tiền mặt, 2 chuyển khoản) + payments tương ứng + đóng ca đếm lệch nhỏ; chạy 2 lần không nhân đôi; chuỗi "…, 3 open orders, 6 paid orders". → kiểm chứng: `SeederTests` xanh; `npm --prefix backend run seed` hai lần cùng output. _Thực tế: DB dev đã có ca từ lát A nên seed lại không thêm ca hôm qua — idempotency kiểm bằng `SeedTwice_SameSummary_NoDuplicates` trên DB trắng; thêm `YesterdayShift_ReconciledAgainstItsPayments`._
 
 ### Nhóm W — Web (worktree riêng, xem mục 3)
 
@@ -282,6 +285,6 @@ Development).
 > _Chốt chặn con người thứ hai. Đọc mục 5 trước tiên._
 > _Đồng ý → tick đủ các ô và chạy `/sdlc:build 01-260925-fnb-pos-core`._
 
-- [ ] Tôi đã đọc mục 5 và các nguy cơ là chấp nhận được
-- [ ] Bằng chứng thành công ở mục 0 là đủ để tôi tin tính năng chạy đúng
-- [ ] Danh sách dependency ở mục 4 được duyệt (đặc biệt `Grpc.Tools`, `Google.Protobuf` — không có trong spec §8)
+- [x] Tôi đã đọc mục 5 và các nguy cơ là chấp nhận được
+- [x] Bằng chứng thành công ở mục 0 là đủ để tôi tin tính năng chạy đúng
+- [x] Danh sách dependency ở mục 4 được duyệt (đặc biệt `Grpc.Tools`, `Google.Protobuf` — không có trong spec §8)

@@ -23,6 +23,7 @@ public sealed class GatewayTests(GatewayFixture fx) : IClassFixture<GatewayFixtu
     [InlineData("/api/orders")]
     [InlineData("/api/kitchen/orders")]
     [InlineData("/api/shifts/current")]
+    [InlineData("/api/payments")]
     [InlineData("/hubs/orders/negotiate")]
     public async Task EverythingElse_WithoutToken_Returns401(string path)
     {
@@ -38,6 +39,7 @@ public sealed class GatewayTests(GatewayFixture fx) : IClassFixture<GatewayFixtu
     [InlineData("/api/kitchen/orders", "ordering")]
     [InlineData("/hubs/orders/negotiate", "ordering")]
     [InlineData("/api/shifts/current", "cashier")]
+    [InlineData("/api/payments", "cashier")]
     [InlineData("/api/auth/logout", "identity")]
     public async Task WithToken_RoutesToOwningService(string path, string service)
     {

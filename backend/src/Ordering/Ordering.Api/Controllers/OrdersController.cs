@@ -20,17 +20,20 @@ public sealed class OrdersController(OrderService service, IOrderRepository orde
 
     [Authorize(Roles = "Cashier,Owner")]
     [HttpGet]
-    public async Task<IEnumerable<OrderView>> List([FromQuery] OrderStatus? status, CancellationToken ct) =>
+    public async Task<IEnumerable<OrderView>> List([FromQuery] OrderStatus? status, [FromQuery] bool active, CancellationToken ct) =>
         await currentShift.GetAsync(ct) is { } s
-            ? (await orders.ListByShiftAsync(s.ShiftId, status, newestFirst: true, ct)).Select(OrderView.From)
+            ? (await orders.ListByShiftAsync(s.ShiftId, status, active, newestFirst: true, ct)).Select(OrderView.From)
             : [];
 
-    /// <summary>Đơn đang mở của ca hiện hành, cũ nhất trước — bếp làm theo thứ tự tới.</summary>
+    /// <summary>
+    /// Đơn còn việc cho bếp của ca hiện hành, cũ nhất trước — kể cả đơn khách đã trả tiền mà
+    /// món chưa xong (thu tiền trước khi pha là chuyện thường).
+    /// </summary>
     [Authorize(Roles = "Kitchen,Owner")]
     [HttpGet("/api/kitchen/orders")]
     public async Task<IEnumerable<OrderView>> Kitchen(CancellationToken ct) =>
         await currentShift.GetAsync(ct) is { } s
-            ? (await orders.ListByShiftAsync(s.ShiftId, OrderStatus.Open, newestFirst: false, ct)).Select(OrderView.From)
+            ? (await orders.ListByShiftAsync(s.ShiftId, status: null, activeOnly: true, newestFirst: false, ct)).Select(OrderView.From)
             : [];
 
     [Authorize(Roles = "Cashier,Owner,Kitchen")]

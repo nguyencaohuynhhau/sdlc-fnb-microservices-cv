@@ -79,7 +79,12 @@ services:
     build: { context: ./backend, args: { PROJECT: Ordering.Api } }
     environment:
       <<: *env
+      # Giữ cho healthcheck đọc cổng; Kestrel__Endpoints dưới đây mới là thứ quyết định bind.
       ASPNETCORE_HTTP_PORTS: "8082"
+      # gRPC (cashier → ordering) cần HTTP/2 không TLS → endpoint riêng, không publish ra host.
+      Kestrel__Endpoints__Http__Url: http://+:8082
+      Kestrel__Endpoints__Grpc__Url: http://+:8092
+      Kestrel__Endpoints__Grpc__Protocols: Http2
       ConnectionStrings__Ordering: Host=postgres;Database=fnb_ordering;Username=postgres;Password=${POSTGRES_PASSWORD}
     depends_on:
       postgres: { condition: service_healthy }
@@ -93,9 +98,11 @@ services:
       <<: *env
       ASPNETCORE_HTTP_PORTS: "8083"
       ConnectionStrings__Cashier: Host=postgres;Database=fnb_cashier;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Services__OrderingGrpc: http://ordering:8092
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }
+      ordering: { condition: service_healthy }
 
   # Cửa vào duy nhất. Chỉ bind localhost: máy dev dùng được, máy khác trong LAN thì không.
   gateway:

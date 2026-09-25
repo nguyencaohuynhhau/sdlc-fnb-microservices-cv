@@ -120,4 +120,76 @@ public sealed class OrderTests
         add.Should().Throw<DomainException>().WithMessage(Order.ClosedForAddMessage);
         cook.Should().Throw<DomainException>().WithMessage(Order.ClosedMessage);
     }
+
+    [Fact]
+    public void MarkPaid_MatchingTotal_PaysAndRaisesOrderPaidWithoutCancelledLines()
+    {
+        var order = NewOrder();
+        order.CancelItem(order.Items[1].Id, Now);
+        var paymentId = Guid.NewGuid();
+
+        var outcome = order.MarkPaid(paymentId, 90_000m, Now.AddMinutes(5));
+
+        outcome.Should().Be(MarkPaidOutcome.Ok);
+        order.Status.Should().Be(OrderStatus.Paid);
+        order.PaidAt.Should().Be(Now.AddMinutes(5));
+        order.PaidPaymentId.Should().Be(paymentId);
+        var paid = order.Events.Should().ContainSingle().Which.Should().BeOfType<OrderPaid>().Subject;
+        paid.PaymentId.Should().Be(paymentId);
+        paid.Total.Should().Be(90_000m);
+        paid.Lines.Should().Equal(new OrderPaidLine(Latte.Id, 2));
+    }
+
+    [Fact]
+    public void MarkPaid_TotalMismatch_LeavesOrderOpen()
+    {
+        var order = NewOrder();
+
+        order.MarkPaid(Guid.NewGuid(), 119_000m, Now).Should().Be(MarkPaidOutcome.TotalMismatch);
+
+        order.Status.Should().Be(OrderStatus.Open);
+        order.Events.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void MarkPaid_SamePaymentAgain_OkWithoutSecondEvent_OtherPaymentAlreadyPaid()
+    {
+        var order = NewOrder();
+        var paymentId = Guid.NewGuid();
+        order.MarkPaid(paymentId, 120_000m, Now);
+        order.ClearEvents();
+
+        order.MarkPaid(paymentId, 120_000m, Now.AddMinutes(1)).Should().Be(MarkPaidOutcome.Ok);
+        order.MarkPaid(Guid.NewGuid(), 120_000m, Now).Should().Be(MarkPaidOutcome.AlreadyPaid);
+
+        order.Events.Should().BeEmpty();
+        order.PaidAt.Should().Be(Now);
+    }
+
+    [Fact]
+    public void MarkPaid_Cancelled_ReturnsOrderCancelled()
+    {
+        var order = NewOrder();
+        order.Cancel(Now);
+
+        order.MarkPaid(Guid.NewGuid(), 120_000m, Now).Should().Be(MarkPaidOutcome.OrderCancelled);
+    }
+
+    [Fact]
+    public void PaidOrder_KitchenCanStillCook_ButCashierCannotChangeItems()
+    {
+        var order = NewOrder();
+        order.MarkPaid(Guid.NewGuid(), 120_000m, Now);
+        var id = order.Items[0].Id;
+
+        order.SetItemStatus(id, OrderItemStatus.Preparing, Now);
+
+        order.Items[0].Status.Should().Be(OrderItemStatus.Preparing);
+        var add = () => order.AddItem(Latte, 1, Now);
+        var cancelItem = () => order.CancelItem(order.Items[1].Id, Now);
+        var cancel = () => order.Cancel(Now);
+        add.Should().Throw<DomainException>().WithMessage(Order.ClosedForAddMessage);
+        cancelItem.Should().Throw<DomainException>().WithMessage(Order.ClosedMessage);
+        cancel.Should().Throw<DomainException>().WithMessage(Order.OnlyOpenCanCancelMessage);
+    }
 }

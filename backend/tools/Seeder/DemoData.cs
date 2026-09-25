@@ -46,7 +46,7 @@ public static class DemoData
 
         await SeedUsersAsync(identity, password, ct);
         await SeedMenuAsync(ordering, ct);
-        await SeedShiftsAsync(cashier, now, ct);
+        await SeedShiftsAsync(cashier, ordering, now, ct);
         await MirrorShiftsAsync(cashier, ordering, ct);
         await SeedOrdersAsync(ordering, now, ct);
 
@@ -56,7 +56,8 @@ public static class DemoData
         var closed = await cashier.Shifts.CountAsync(s => s.ClosedAt != null, ct);
         var open = await cashier.Shifts.CountAsync(s => s.ClosedAt == null, ct);
         var orders = await ordering.Orders.CountAsync(o => o.Status == OrderStatus.Open, ct);
-        return $"Seeded: {users} users, {menu} menu items, {closed} closed shift, {open} open shift, {orders} open orders";
+        var paid = await ordering.Orders.CountAsync(o => o.Status == OrderStatus.Paid, ct);
+        return $"Seeded: {users} users, {menu} menu items, {closed} closed shift, {open} open shift, {orders} open orders, {paid} paid orders";
     }
 
     private static DbContextOptions<T> Options<T>(string cs)
@@ -94,19 +95,57 @@ public static class DemoData
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>Chỉ khi cashier chưa có ca nào: một ca hôm qua đã đóng, một ca mở từ 2 tiếng trước.</summary>
-    private static async Task SeedShiftsAsync(CashierDbContext db, DateTimeOffset now, CancellationToken ct)
+    /// <summary>Đơn đã thu của ca hôm qua: 4 tiền mặt, 2 chuyển khoản.</summary>
+    private static readonly ((string Name, int Qty)[] Lines, PaymentMethod Method)[] PaidYesterday =
+    [
+        ([("Cà phê sữa đá", 2)], PaymentMethod.Cash),
+        ([("Latte", 1), ("Croissant bơ", 1)], PaymentMethod.Cash),
+        ([("Cà phê đen đá", 3)], PaymentMethod.Cash),
+        ([("Trà vải", 1), ("Bánh chuối", 2)], PaymentMethod.Cash),
+        ([("Matcha latte", 2), ("Tiramisu", 1)], PaymentMethod.Transfer),
+        ([("Cold brew", 1), ("Bánh mì thịt", 1)], PaymentMethod.Transfer),
+    ];
+
+    /// <summary>
+    /// Chỉ khi cashier chưa có ca nào: ca hôm qua có đơn đã thu + bút toán, đóng ca đếm thiếu 2.000đ
+    /// (để màn tổng kết/báo cáo có số lệch thật); một ca mở từ 2 tiếng trước.
+    /// </summary>
+    private static async Task SeedShiftsAsync(CashierDbContext cashier, OrderingDbContext ordering, DateTimeOffset now, CancellationToken ct)
     {
-        if (await db.Shifts.AnyAsync(ct))
+        if (await cashier.Shifts.AnyAsync(ct))
         {
             return;
         }
 
-        var yesterday = Shift.Open(null, "cashier", 500_000m, now.AddDays(-1).AddHours(-10));
-        yesterday.Close(now.AddDays(-1));
-        db.Shifts.Add(yesterday);
-        db.Shifts.Add(Shift.Open(yesterday, "cashier", 500_000m, now.AddHours(-2)));
-        await db.SaveChangesAsync(ct);
+        var openedAt = now.AddDays(-1).AddHours(-10);
+        var yesterday = Shift.Open(null, "cashier", 500_000m, openedAt);
+        var menu = await ordering.MenuItems.ToDictionaryAsync(m => m.Name, ct);
+        for (var i = 0; i < PaidYesterday.Length; i++)
+        {
+            var (lines, method) = PaidYesterday[i];
+            var at = openedAt.AddHours(1 + i);
+            var order = Order.Create(yesterday.Id, lines.Select(l => (menu[l.Name], l.Qty)), at);
+            foreach (var item in order.Items)
+            {
+                order.SetItemStatus(item.Id, OrderItemStatus.Preparing, at);
+                order.SetItemStatus(item.Id, OrderItemStatus.Done, at.AddMinutes(5));
+            }
+
+            var paymentId = Guid.NewGuid();
+            order.MarkPaid(paymentId, order.Total, at.AddMinutes(10));
+            ordering.Orders.Add(order);
+            cashier.Payments.Add(Payment.Completed(paymentId, order.Id, yesterday.Id, order.Total, method, at.AddMinutes(10)));
+        }
+
+        var cashTotal = cashier.Payments.Local.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
+        var transferTotal = cashier.Payments.Local.Where(p => p.Method == PaymentMethod.Transfer).Sum(p => p.Amount);
+        yesterday.Close(yesterday.OpeningFloat + cashTotal - 2_000m, cashTotal, transferTotal, now.AddDays(-1));
+        cashier.Shifts.Add(yesterday);
+        cashier.Shifts.Add(Shift.Open(yesterday, "cashier", 500_000m, now.AddHours(-2)));
+
+        // ponytail: hai database, không có transaction chung — ordering lưu trước; nếu cashier lỗi thì xoá volume seed lại.
+        await ordering.SaveChangesAsync(ct);
+        await cashier.SaveChangesAsync(ct);
     }
 
     /// <summary>Thay cho ShiftOpened/ShiftClosed không được phát (seed không đi qua outbox).</summary>

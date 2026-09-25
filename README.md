@@ -16,7 +16,7 @@ Cần Docker và .NET 10 SDK (cho seeder). Node 24 chỉ cần khi chạy test w
 cp .env.example .env        # điền POSTGRES_PASSWORD, JWT_SIGNING_KEY (≥ 32 byte), SEED_PASSWORD (≥ 8 ký tự)
 docker compose up -d --build --wait
 npm --prefix backend run seed
-# → Seeded: 3 users, 20 menu items, 1 closed shift, 1 open shift, 3 open orders
+# → Seeded: 3 users, 20 menu items, 1 closed shift, 1 open shift, 3 open orders, 6 paid orders
 ```
 
 Mở http://localhost:5173, đăng nhập `cashier` (POS) hoặc `kitchen` (bảng bếp), mật khẩu là `SEED_PASSWORD`.

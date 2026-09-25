@@ -47,7 +47,8 @@
   "e2eTriggers": [
     "backend/src/Identity",
     "backend/src/Ordering/Ordering.Domain",
-    "backend/src/Cashier/Cashier.Domain",
+    "backend/src/Cashier",
+    "backend/src/Shared/Protos",
     "backend/src/Shared/Shared.Messaging",
     "web/src/lib/apiClient.ts"
   ],
@@ -58,7 +59,9 @@
   "requiredTests": [
     "backend/tests/Ordering.IntegrationTests/ConcurrencyTests.cs",
     "backend/tests/Ordering.IntegrationTests/OutboxTests.cs",
+    "backend/tests/Ordering.IntegrationTests/MarkPaidTests.cs",
     "backend/tests/Cashier.IntegrationTests/ShiftTests.cs",
+    "backend/tests/Cashier.IntegrationTests/PaymentIdempotencyTests.cs",
     "backend/tests/Identity.IntegrationTests/AuthTests.cs"
   ],
   "_comment_codeExtensions": "Đuôi file được coi là mã nguồn — quyết định cái gì kích hoạt cổng chặn commit.",

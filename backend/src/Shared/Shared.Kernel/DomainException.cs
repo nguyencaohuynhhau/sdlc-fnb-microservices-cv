@@ -12,3 +12,9 @@ public sealed class NotFoundException(string message) : DomainException(message)
 
 /// <summary>Yêu cầu tham chiếu thứ không tồn tại/không hợp lệ (vd. món không có trong thực đơn) — tầng web ánh xạ sang 400.</summary>
 public sealed class InvalidRequestException(string message) : DomainException(message);
+
+/// <summary>Request hợp lệ về cú pháp nhưng mâu thuẫn với lần gửi trước (cùng Idempotency-Key, body khác) — 422.</summary>
+public sealed class UnprocessableRequestException(string message) : DomainException(message);
+
+/// <summary>Dịch vụ phụ thuộc không trả lời kịp — 503. Người dùng thử lại được, không có gì bị ghi.</summary>
+public sealed class DependencyUnavailableException(string message) : DomainException(message);

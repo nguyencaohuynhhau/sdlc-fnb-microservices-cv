@@ -10,6 +10,7 @@ public sealed record OrderView(
     string Status,
     decimal Total,
     DateTimeOffset CreatedAt,
+    DateTimeOffset? PaidAt,
     uint Version,
     IReadOnlyList<OrderItemView> Items)
 {
@@ -20,6 +21,7 @@ public sealed record OrderView(
         o.Status.ToString(),
         o.Total,
         o.CreatedAt,
+        o.PaidAt,
         o.Version,
         [.. o.Items.OrderBy(i => i.Line).Select(i => new OrderItemView(i.Id, i.MenuItemId, i.Name, i.UnitPrice, i.Qty, i.Status.ToString()))]);
 }

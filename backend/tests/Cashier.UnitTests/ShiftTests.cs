@@ -33,7 +33,7 @@ public sealed class ShiftTests
     public void Open_AfterPreviousShiftClosed_Succeeds()
     {
         var previous = Shift.Open(null, "cashier", 0m, Now);
-        previous.Close(Now.AddHours(8));
+        previous.Close(0m, 0m, 0m, Now.AddHours(8));
 
         Shift.Open(previous, "cashier", 0m, Now.AddHours(9)).IsOpen.Should().BeTrue();
     }
@@ -44,7 +44,7 @@ public sealed class ShiftTests
         var shift = Shift.Open(null, "cashier", 0m, Now);
         shift.ClearEvents();
 
-        shift.Close(Now.AddHours(8));
+        shift.Close(0m, 0m, 0m, Now.AddHours(8));
 
         shift.ClosedAt.Should().Be(Now.AddHours(8));
         shift.Events.Should().ContainSingle().Which.Should().BeOfType<ShiftClosed>()
@@ -52,12 +52,28 @@ public sealed class ShiftTests
     }
 
     [Fact]
+    public void Close_ComputesExpectedAndVariance()
+    {
+        var shift = Shift.Open(null, "cashier", 500_000m, Now);
+        shift.ClearEvents();
+
+        // Quỹ đầu 500k + thu tiền mặt 120k = két phải có 620k; đếm được 615k → thiếu 5k. Chuyển khoản không vào két.
+        shift.Close(countedCash: 615_000m, cashTotal: 120_000m, transferTotal: 80_000m, Now.AddHours(8));
+
+        shift.ExpectedCash.Should().Be(620_000m);
+        shift.CountedCash.Should().Be(615_000m);
+        shift.Variance.Should().Be(-5_000m);
+        shift.Events.Should().ContainSingle().Which.Should().BeEquivalentTo(new ShiftClosed(
+            shift.Id, Now.AddHours(8), 615_000m, 620_000m, -5_000m, 120_000m, 80_000m), o => o.Excluding(e => e.MessageId).Excluding(e => e.OccurredAt));
+    }
+
+    [Fact]
     public void Close_AlreadyClosed_Throws()
     {
         var shift = Shift.Open(null, "cashier", 0m, Now);
-        shift.Close(Now.AddHours(8));
+        shift.Close(0m, 0m, 0m, Now.AddHours(8));
 
-        var act = () => shift.Close(Now.AddHours(9));
+        var act = () => shift.Close(0m, 0m, 0m, Now.AddHours(9));
 
         act.Should().Throw<DomainException>().WithMessage(Shift.AlreadyClosedMessage);
     }

@@ -37,6 +37,40 @@ public sealed class OrderService(
         MutateAsync(orderId, expectedVersion, OrderEvents.Cancelled, (o, now) => o.Cancel(now), ct);
 
     /// <summary>
+    /// Cashier thu tiền (qua gRPC). Không có If-Match: bếp đổi trạng thái món cũng làm xmin đổi mà tổng
+    /// tiền không đổi, nên xung đột ở đây là chuyện thường — đọc lại, KIỂM LẠI tổng, thử lại.
+    /// </summary>
+    /// <returns>Kết quả và tổng thật của đơn lúc quyết định.</returns>
+    public async Task<(MarkPaidOutcome Outcome, decimal ActualTotal)> MarkPaidAsync(
+        Guid orderId, decimal expectedTotal, Guid paymentId, CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var order = await orders.FindAsync(orderId, ct) ?? throw new NotFoundException(Order.NotFoundMessage);
+            var outcome = order.MarkPaid(paymentId, expectedTotal, clock.GetUtcNow());
+            if (outcome != MarkPaidOutcome.Ok)
+            {
+                return (outcome, order.Total);
+            }
+
+            if (await orders.TrySaveAsync(ct))
+            {
+                await NotifyAsync(OrderEvents.Updated, order, ct);
+                return (outcome, order.Total);
+            }
+
+            if (attempt == MarkPaidAttempts)
+            {
+                throw new DomainException(Order.StaleVersionMessage);
+            }
+
+            orders.Reset();
+        }
+    }
+
+    public const int MarkPaidAttempts = 3;
+
+    /// <summary>
     /// Hai lớp chặn ghi đè: so <c>If-Match</c> với phiên bản vừa đọc (bắt client cầm bản cũ), rồi
     /// <c>UPDATE … WHERE xmin = @v</c> lúc lưu (bắt hai request lọt qua bước so cùng lúc).
     /// </summary>

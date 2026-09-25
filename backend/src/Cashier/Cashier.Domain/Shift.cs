@@ -23,7 +23,7 @@ public sealed class Shift : Entity
 
     public decimal OpeningFloat { get; private set; }
 
-    // Lát A chưa đối chiếu tiền — ba trường dưới luôn null cho tới lát B.
+    // Đối chiếu tiền lúc đóng ca — null khi ca còn mở.
     public decimal? CountedCash { get; private set; }
 
     public decimal? ExpectedCash { get; private set; }
@@ -48,7 +48,11 @@ public sealed class Shift : Entity
         return shift;
     }
 
-    public void Close(DateTimeOffset now)
+    /// <summary>
+    /// Đóng ca và đối chiếu két: tiền phải có = quỹ đầu ca + tiền mặt đã thu; lệch = đếm được − phải có
+    /// (âm là thiếu). Chuyển khoản không nằm trong két nên không vào phép tính lệch.
+    /// </summary>
+    public void Close(decimal countedCash, decimal cashTotal, decimal transferTotal, DateTimeOffset now)
     {
         if (!IsOpen)
         {
@@ -56,7 +60,10 @@ public sealed class Shift : Entity
         }
 
         ClosedAt = now;
-        Raise(new ShiftClosed(Id, now));
+        CountedCash = countedCash;
+        ExpectedCash = OpeningFloat + cashTotal;
+        Variance = countedCash - ExpectedCash;
+        Raise(new ShiftClosed(Id, now, countedCash, ExpectedCash.Value, Variance.Value, cashTotal, transferTotal));
     }
 }
 
@@ -67,7 +74,15 @@ public sealed record ShiftOpened(Guid ShiftId, DateTimeOffset OpenedAt) : Integr
 }
 
 [Topic(Topics.ShiftClosed)]
-public sealed record ShiftClosed(Guid ShiftId, DateTimeOffset ClosedAt) : IntegrationEvent
+/// <summary>Các trường tiền thêm ở lát B cho reporting (lát D); ordering chỉ đọc hai trường đầu.</summary>
+public sealed record ShiftClosed(
+    Guid ShiftId,
+    DateTimeOffset ClosedAt,
+    decimal CountedCash,
+    decimal ExpectedCash,
+    decimal Variance,
+    decimal CashTotal,
+    decimal TransferTotal) : IntegrationEvent
 {
     public override string PartitionKey => ShiftId.ToString();
 }
