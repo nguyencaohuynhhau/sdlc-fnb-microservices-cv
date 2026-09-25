@@ -1,0 +1,12 @@
+{
+  "name": "fnb-backend",
+  "private": true,
+  "description": "Shim để bộ khung SDLC (verify.mjs, CI) nhìn thấy workspace .NET. Mọi script uỷ quyền sang dotnet.",
+  "scripts": {
+    "build": "dotnet build FnbPos.sln -warnaserror",
+    "test": "dotnet test FnbPos.sln --no-build --filter \"Category!=Integration\"",
+    "test:e2e": "dotnet test FnbPos.sln --filter \"Category=Integration\"",
+    "format": "dotnet format FnbPos.sln --verify-no-changes",
+    "seed": "dotnet run --project tools/Seeder"
+  }
+}

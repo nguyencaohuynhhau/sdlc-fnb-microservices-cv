@@ -1,0 +1,7 @@
+$ docker compose down -v && docker compose up -d --wait   # image có sẵn
+8 container healthy sau 38s
+
+$ npm --prefix backend run seed   # lần 1
+Seeded: 3 users, 20 menu items, 1 closed shift, 1 open shift, 3 open orders
+$ npm --prefix backend run seed   # lần 2
+Seeded: 3 users, 20 menu items, 1 closed shift, 1 open shift, 3 open orders

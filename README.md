@@ -1,108 +1,78 @@
-# sdlc-base — Bộ khung AI-Native SDLC
+# FnB POS — microservices .NET 10 + React
 
-Bộ khung dùng lại được cho quy trình **AI-Native SDLC**: chuỗi hiện vật
-`intent.md → spec.md → plan.md → code`, ba chốt chặn con người, cổng chất lượng tự động và
-một hook chặn commit khi cổng chưa xanh.
+Hệ thống bán hàng cho quán cà phê: thu ngân gọi món trên POS, bếp thấy đơn tức thì, món chuyển
+`Chờ → Đang làm → Xong` và POS thấy lại trong dưới 2 giây. Dự án portfolio, dựng để đối chiếu từng
+yêu cầu trong các JD .NET microservices (`docs/.net-micro.txt`) với mã chạy được và test chứng minh.
 
-Đây là **khung rỗng có mẫu**, không phải thư viện. Bạn copy nó vào dự án rồi điền vào.
+Làm theo quy trình **AI-Native SDLC** (`intent → spec → plan → build → verify`), xem
+[docs/AI-NATIVE-SDLC.md](docs/AI-NATIVE-SDLC.md). Toàn bộ quyết định của lát hiện tại nằm ở
+[docs/intents/01-260925-fnb-pos-core/](docs/intents/01-260925-fnb-pos-core/).
 
----
+## Chạy thử
 
-## Cài vào một dự án
+Cần Docker và .NET 10 SDK (cho seeder). Node 24 chỉ cần khi chạy test web.
 
 ```bash
-# 1. Copy bộ khung (đứng ở gốc repo đích)
-cp -r /đường/dẫn/sdlc-base/{.claude,.github,scripts,docs,AGENTS.md,CLAUDE.md,sdlc.config.json,CHANGELOG.md} .
-
-# 2. Thêm script vào package.json ở gốc
-#    "sdlc:verify":        "node scripts/sdlc/verify.mjs"
-#    "sdlc:evals":         "node docs/evals/run.mjs"
-#    "sdlc:lint-baseline": "node scripts/sdlc/lint-ratchet.mjs --all --update-baseline"
-
-# 3. Thêm .brain/ vào .gitignore
-
-# 4. Khai báo workspace và cổng
-$EDITOR sdlc.config.json
-
-# 5. Chốt mức nợ lint hiện tại làm baseline
-npm run sdlc:lint-baseline
-
-# 6. Kiểm tra bộ khung đã chạy
-npm run sdlc:evals
-npm run sdlc:verify
+cp .env.example .env        # điền POSTGRES_PASSWORD, JWT_SIGNING_KEY (≥ 32 byte), SEED_PASSWORD (≥ 8 ký tự)
+docker compose up -d --build --wait
+npm --prefix backend run seed
+# → Seeded: 3 users, 20 menu items, 1 closed shift, 1 open shift, 3 open orders
 ```
 
-Repo đích đã có `.claude/settings.json` riêng thì **merge** phần `hooks`, đừng ghi đè.
+Mở http://localhost:5173, đăng nhập `cashier` (POS) hoặc `kitchen` (bảng bếp), mật khẩu là `SEED_PASSWORD`.
+Mở hai trình duyệt cạnh nhau để thấy đơn chạy qua SignalR.
 
----
-
-## Phải điền những gì
-
-| File | Việc phải làm | Bắt buộc |
-|------|---------------|----------|
-| `sdlc.config.json` | Khai báo workspace, cổng, `e2eTriggers`, `requiredTests` | ✅ |
-| `AGENTS.md` | Điền mọi chỗ `<…>`: bối cảnh, ràng buộc kỹ thuật, chính sách bảo mật, DoD | ✅ |
-| `CLAUDE.md` | Điền lệnh dev và dịch vụ ngoài | ✅ |
-| `docs/architecture/STRUCTURE.md` | Cấu trúc thư mục thật | ✅ |
-| `docs/evals/project-evals.mjs` | Chép từ `project-evals.example.mjs`, viết eval cho rào cản thật | nên có |
-| `.github/workflows/ci.yml` | Sửa `matrix.workspace`, bỏ comment khối `services` nếu cần e2e | nếu dùng GH Actions |
-| `docs/evals/cases/*.md` | Thay 2 ca mẫu bằng ca thật của dự án | dần dần |
-| `docs/AI-NATIVE-SDLC.md` | Hầu như dùng nguyên; chỉ sửa chỗ `<…>` | – |
-
-Chưa điền `AGENTS.md` thì bộ khung vẫn chạy — nhưng nó chỉ chặn được những gì bạn đã viết ra.
-Rào cản không viết ra là rào cản không tồn tại.
-
----
-
-## Có gì trong này
-
-```
-.claude/
-├── settings.json              # 3 hook: track-changes, artifact-guard, next-step
-└── commands/sdlc/*.md         # 7 lệnh: intent, triage, spec, plan, build, verify, ship
-scripts/sdlc/
-├── lib.mjs                    # đọc sdlc.config.json; định nghĩa "file mã đã đổi" + fingerprint
-├── verify.mjs                 # cổng chất lượng scope-aware
-├── lint-ratchet.mjs           # cổng lint kiểu bánh cóc (chỉ đỏ khi có lỗi MỚI)
-└── hooks/                     # 3 hook nói trên
-docs/
-├── AI-NATIVE-SDLC.md          # quy trình: sơ đồ, bộ lệnh, vì sao thiết kế như vậy
-├── intents/                   # chuỗi hiện vật (thư mục <NN>-<YYMMDD>-<slug>/) + 3 template + INDEX.md
-├── evals/                     # eval phổ quát + chỗ cắm eval riêng + ca hành vi
-├── evidence/                  # ảnh chụp và log (lưu theo thư mục <NN>-<YYMMDD>-<slug>/)
-└── architecture/STRUCTURE.md  # bản đồ thư mục
-AGENTS.md                      # rào cản hành vi — nguồn sự thật cao nhất
-sdlc.config.json               # điểm cấu hình DUY NHẤT của phần project-specific
+```bash
+npm run sdlc:verify -- --all                                  # format + build + unit test + lint
+set -a && . ./.env && set +a && npm run sdlc:verify -- --all --e2e   # + Testcontainers + Playwright (cần stack đang chạy)
 ```
 
-Mọi thứ đặc thù dự án nằm trong `sdlc.config.json` và những chỗ `<…>` trong tài liệu.
-Các script **không hardcode** tên workspace, framework hay đường dẫn nào.
-
----
-
-## Hai cơ chế đáng hiểu trước khi dùng
-
-**Cổng chặn commit dùng dấu vân tay nội dung.** Hook `PreToolUse` băm nội dung mọi file mã đã
-đổi. Sửa thêm một dòng sau khi verify là vân tay lệch → phải verify lại. Không lách được bằng
-`git add`. Lối thoát khẩn cho hotfix: `SDLC_SKIP_VERIFY_GATE=1`, và phải giải thích trong PR.
-
-**Mọi cổng đều là ratchet, không phải tường.** Dự án brownfield đã vi phạm sẵn ở hàng trăm chỗ.
-Cổng cấm tuyệt đối sẽ đỏ ngay ngày đầu và hệ quả duy nhất là mọi người tắt nó đi. Nên: chốt mức
-vi phạm hiện tại làm baseline, chỉ đỏ khi có vi phạm **mới**, và baseline chỉ được phép co lại.
-`lint-baseline.json` làm vậy cho lint; mẫu P03 trong `project-evals.example.mjs` làm vậy cho guard.
-
----
-
-## Dùng hàng ngày
+## Kiến trúc
 
 ```
-/sdlc:intent   <mô tả vấn đề bằng lời thường>
-/sdlc:triage   → cập nhật docs/intents/INDEX.md
-/sdlc:spec     → spec.md
-/sdlc:plan     → plan.md   🧍 người điều phối duyệt, đọc mục "Tự chất vấn" trước
-/sdlc:build    → code + test + mục mới trong CHANGELOG.md
-/sdlc:verify   → cổng xanh + docs/evidence/
-/sdlc:ship     → PR
+ Trình duyệt (POS, bếp)
+        │  HTTP + WebSocket
+        ▼
+ web — nginx :5173 ──► gateway — YARP :8080      JWT · CORS allowlist · /healthz gộp
+                           │
+         ┌─────────────────┼──────────────────┐
+         ▼                 ▼                  ▼
+     identity          ordering            cashier
+  login, refresh    thực đơn, đơn,       mở / đóng ca
+                    hub SignalR
+         │                 │   ▲              │
+         │                 │   └──── Kafka ───┘   shift-opened / shift-closed (outbox → inbox)
+         ▼                 ▼                  ▼
+   fnb_identity      fnb_ordering        fnb_cashier      PostgreSQL 17, mỗi dịch vụ một DB
+         │                 │
+         └───── Redis ─────┘   khoá đăng nhập sai · cache thực đơn
 ```
 
-Chi tiết: [docs/AI-NATIVE-SDLC.md](docs/AI-NATIVE-SDLC.md).
+- **Mỗi dịch vụ một database.** Không dịch vụ nào đọc database của dịch vụ khác; ordering biết ca đang mở
+  **qua sự kiện** của cashier, giữ bản chiếu trong bảng `known_shifts`.
+- **Chỉ gateway và web mở cổng** (bind `127.0.0.1`). Ba dịch vụ vẫn tự kiểm JWT — gateway không phải lớp bảo vệ duy nhất.
+- Chi tiết: [cấu trúc thư mục](docs/architecture/STRUCTURE.md) · [API](docs/api/endpoints.md) ·
+  [schema](docs/database/schema.md) · [design system](docs/design/DESIGN_SYSTEM.md).
+
+## Đối chiếu JD
+
+| Yêu cầu JD | Ở đâu trong repo | Bằng chứng |
+|------------|------------------|------------|
+| Microservices, service decomposition | 3 dịch vụ + gateway, database riêng (`backend/src/`) | `docker compose ps`: 8 container healthy — `docs/evidence/01-260925-fnb-pos-core/a-compose-ps.png` |
+| API Gateway | YARP, route + JWT + CORS allowlist (`backend/src/Gateway/Program.cs`) | `backend/tests/Gateway.Tests/GatewayTests.cs` (21 test, gồm WebSocket qua gateway) |
+| Kafka, event-driven | Outbox ghi cùng transaction, publisher nền, inbox khử trùng (`backend/src/Shared/Shared.Messaging/`) | `backend/tests/Ordering.IntegrationTests/OutboxTests.cs`: crash trước khi publish vẫn gửi khi khởi động lại |
+| Redis | Cache thực đơn `menu:v1`, đếm đăng nhập sai → khoá 15 phút | `backend/tests/Identity.IntegrationTests/AuthTests.cs` (`Login_TenFailures_Returns423`) |
+| JWT / OAuth2 | HS256, access 60 phút, refresh token xoay vòng, dùng lại → thu hồi cả chuỗi | `AuthTests.cs` (`Refresh_ReusedToken_RevokesFamily`) |
+| EF Core, PostgreSQL | Migration, `xmin` làm concurrency token, unique partial index `NULLS NOT DISTINCT`, tiền `numeric(18,2)` | `backend/tests/Ordering.IntegrationTests/ConcurrencyTests.cs`, `backend/tests/Cashier.IntegrationTests/ShiftTests.cs` |
+| SQL: index, transaction | Index theo truy vấn thật, ràng buộc "một ca mở" ở DB chứ không ở code | `ShiftTests.cs` (`OpenShift_Concurrent_OnlyOneSucceeds`: 10 request song song → đúng 1 thành công) |
+| Clean Architecture, SOLID, DI | `Api → Application → Domain`, `Infrastructure` cắm vào qua interface (`backend/src/Ordering/`) | `backend/tests/Ordering.UnitTests/` chạy domain không cần I/O |
+| REST API, middleware | ProblemDetails tiếng Việt, `[Authorize]` mặc định, ETag/If-Match (`backend/src/Shared/Shared.Web/`) | 409 thật khi hai người sửa cùng đơn — `a-conflict-409.png` |
+| Realtime (SignalR) | Hub `/hubs/orders`, group theo ca, token qua query chỉ ở `/hubs` | `web/e2e/order-to-kitchen.spec.ts`: POS → bếp < 2000ms (`a-latency.log`) |
+| Docker, CI/CD | Một `backend/Dockerfile` cho mọi dịch vụ, healthcheck, `.github/workflows/ci.yml` | `docker compose up --wait` từ số 0 |
+| ReactJS, TypeScript | React 19, TanStack Router/Query/Form, Zod, Zustand, shadcn/ui (`web/src/`) | `web/e2e/offline-banner.spec.ts`: mất mạng → khoá nút ghi, có mạng → tự hồi phục |
+| Kiểm thử trên hạ tầng thật | Testcontainers Postgres/Kafka/Redis, Playwright trên stack compose | `npm run sdlc:verify -- --all --e2e` |
+| Idempotency (giao dịch tiền) | _lát B_ — `POST /api/payments` với `Idempotency-Key` | — |
+| gRPC | _lát B_ — `Ordering.MarkPaid` nội bộ | — |
+| Saga / nhất quán cuối cùng giữa dịch vụ | _lát C_ — trừ kho theo `OrderPaid`, cờ hết hàng về POS | — |
+| CQRS read model | _lát D_ — `reporting` dựng từ sự kiện, báo cáo phân trang | — |
+| OpenAPI / Swagger | chưa làm | — |

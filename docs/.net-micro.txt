@@ -1,0 +1,143 @@
+1.
+Senior .NET Core Developer (Microservices, C#, ASP.NET)
+Yêu cầu công việc
+
+Có ít nhất từ 3 năm kinh nghiệm phát triển ứng dụng .NET Core 8, kiến trúc Microservice
+Front-end: ReactJS, NextJS, CSS, Javascript, Jquery
+Back-end: ASP.NET / MVC / MVC Core, Entity Framework, SQL Server, SMPP
+Message Queue & Cache: RabbitMQ, Kafka, Redis
+Hiểu rõ kiến thức về OOP, SOLID
+Hiểu và áp dụng Design Pattern (Singleton, Repository, Strategy, Mediator...)
+Hiểu REST API, JWT/OAuth2
+Nắm vững C#: async/await, LINQ, DI, Middleware
+Hiểu SQL: JOIN, index, transaction, ORM vs raw SQL
+Sử dụng source version control (Gitlab)
+Có thể làm việc độc lập hoặc với một nhóm theo yêu cầu
+Tinh thần trách nhiệm cao, cần thận và tỉ mỉ trong công việc
+Khả năng học hỏi và research nhanh.
+Ưu tiên các ứng viên:
+Có kinh nghiệm tối ưu hóa hệ thống, thiết kế kiến trúc hệ thống theo modular và scalable
+Microservices: service decomposition, inter-service communication, API Gateway
+Có kiến thức về CQRS Pattern + Clean Architecture
+NoSQL: MongoDB, Elasticsearch
+Docker, CI/CD cơ bản
+NodeJS, NextJS
+
+2.
+Backend .NET Developer (Microservices)
+
+- Tối thiểu 3 năm kinh nghiệm phát triển .NET/C#, có kinh nghiệm thực tế với ASP.NET Core Web API, RESTful API.
+
+- Có kiến thức và kinh nghiệm làm việc với kiến trúc Microservices.
+
+- Thành thạo Entity Framework Core, LINQ; hiểu biết tốt về Clean Architecture, CQRS, SOLID, Design Patterns.
+
+- Có kinh nghiệm với PostgreSQL (thiết kế schema, query, tối ưu truy vấn).
+
+- Có kinh nghiệm sử dụng Kafka (hoặc message/event streaming tương đương) và Redis.
+
+- Có khả năng đọc hiểu tài liệu kỹ thuật bằng tiếng Anh; tư duy phân tích và giải quyết vấn đề tốt.
+
+- Có tinh thần ownership, khả năng làm việc độc lập và phối hợp nhóm hiệu quả.
+
+Ưu tiên:
+
+- Có khả năng đọc hiểu hoặc phối hợp phát triển Frontend (ReactJS, Next.js, TypeScript).
+
+- Có kinh nghiệm xây dựng hệ thống Microservices từ đầu (greenfield), triển khai production quy mô lớn.
+
+- Có kinh nghiệm Docker/Kubernetes, cloud platform, CI/CD (GitLab CI/CD...).
+
+- Có kinh nghiệm monitoring/logging (Grafana, Prometheus, ELK/OpenSearch...).
+
+- Có kinh nghiệm trong lĩnh vực Fintech, Insurtech, E-commerce hoặc hệ thống có giao dịch (transaction).
+
+- Có kinh nghiệm làm việc theo Agile/Scrum.
+
+
+
+TECH STACK
+
+.NET 10 LTS, C#, ASP.NET Core Web API, Entity Framework Core, PostgreSQL, Apache Kafka, Redis, RESTful API/OpenAPI/Swagger, ReactJS/Next.js/TypeScript (Frontend).
+
+
+3.
+NET Core Developer (Backend / Microservices)
+
+Job Description
+? Design, develop, and maintain backend systems using .NET Core following Microservices architecture
+? Analyze business requirements and read, understand, and evaluate existing system architectures, proposing technical improvements when necessary
+? Design, develop, and optimize databases using SQL Server and PostgreSQL
+? Utilize Redis for caching, performance optimization, and state management
+? Build and integrate event-driven systems using Azure services such as: 
+o Azure Event Grid
+o Azure Service Bus
+? Work with Kafka for message streaming and event-based communication
+? Ensure system reliability, scalability, performance, and maintainability
+? Collaborate closely with DevOps, QA, and cross-functional teams throughout the development lifecycle
+? Participate in troubleshooting, debugging, and resolving complex technical issues
+? Handle multiple concurrent tasks effectively in a fast-paced project environment
+
+Technical Requirements
+? Minimum 4 years of experience developing applications with .NET Core / ASP.NET Core
+? Strong hands-on experience with: 
+o SQL Server and PostgreSQL (data modeling, query optimization)
+o Redis
+o Kafka (producers/consumers, topics, partitions – strong advantage)
+o Azure Event Grid and Azure Service Bus
+? Solid understanding of: 
+o Microservices architecture
+o Event-driven architecture
+o RESTful APIs (gRPC is a plus)
+? Experience working with distributed systems and high-availability / scalable systems
+
+Skills & Competencies
+? Strong system analysis and architectural comprehension skills
+? Excellent problem-solving and troubleshooting abilities
+? Ability to manage multiple tasks concurrently and prioritize effectively
+? Proactive, responsible, and detail-oriented mindset
+? Strong communication and teamwork skills
+? Ability to write clear and maintainable technical documentation
+
+Nice to Have
+? Experience with: 
+o Docker, Kubernetes
+o CI/CD pipelines
+o Azure Cloud services (App Service, AKS, Monitor, Application Insights, etc.)
+? Knowledge of: 
+o Clean Architecture, Domain-Driven Design (DDD)
+o Security standards such as OAuth2, OpenID Connect, JWT
+? Experience migrating monolithic systems to microservices 
+
+4.
+Mid .Net Developer
+JOB DESCRIPTION 
+- Design, develop, and maintain backend systems using .NET Core, following Microservices architecture  
+- Analyze business requirements and read, understand, and evaluate existing system architectures, proposing technical improvements when necessary  
+- Design, develop, and optimize databases using SQL Server and PostgreSQL  
+- Utilize Redis for caching, performance optimization, and state management  
+- Build and integrate event‑driven systems using Azure services such as Azure Event Grid, Azure Service Bus  
+- Work with Kafka for message streaming and event-based communication  
+- Ensure system reliability, scalability, performance, and maintainability  
+- Collaborate closely with DevOps, QA, and cross‑functional teams throughout the development lifecycle  
+- Participate in troubleshooting, debugging, and resolving complex technical issues  
+- Handle multiple concurrent tasks effectively in a fast‑paced project environment 
+
+REQUIRED SKILLS AND EXPERIENCE 
+- Minimum 4 years of experience developing applications with .NET Core / ASP.NET Core.
+- Strong hands-on experience with SQL Server, PostgreSQL, Redis, Kafka, Azure Event Grid, and Azure Service Bus.
+- Solid understanding of Microservices Architecture, Event-Driven Architecture, and RESTful APIs (gRPC is a plus).
+- Experience building distributed, scalable, and highly available systems.
+- Strong system analysis, problem-solving, and troubleshooting skills.
+- Ability to manage multiple tasks, prioritize effectively, and work independently.
+- Strong communication, teamwork, and technical documentation skills.
+- Proactive, responsible, and detail-oriented.
+- Experience in the Insurance/Banking/Fintech (Except Blockchain)
+
+Nice to Have   
+- Experience with Docker, Kubernetes, and CI/CD pipelines.
+- Hands-on experience with Azure Cloud Services (App Service, AKS, Azure Monitor, Application Insights, etc.).
+- Knowledge of Clean Architecture and Domain-Driven Design (DDD).
+- Familiarity with security standards such as OAuth2, OpenID Connect, and JWT.
+- Experience migrating monolithic applications to microservices.
+- Experience implementing CI/CD pipelines using Azure DevOps or GitHub Actions.

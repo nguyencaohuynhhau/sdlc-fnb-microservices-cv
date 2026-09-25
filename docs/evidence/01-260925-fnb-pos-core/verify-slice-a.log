@@ -1,0 +1,257 @@
+# npm run sdlc:verify -- --all --e2e  @ cc7c886
+
+> sdlc-base@1.0.0 sdlc:verify
+> node scripts/sdlc/verify.mjs --all --e2e
+
+
+🔍 SDLC Verify
+   File mã đã đổi : 0
+   Phạm vi        : backend, web
+   E2E            : có (ép bằng --e2e)
+
+▶ backend:format npm run format
+
+> format
+> dotnet format FnbPos.sln --verify-no-changes
+
+✔ backend:format (34.7s)
+
+▶ backend:build npm run build
+
+> build
+> dotnet build FnbPos.sln -warnaserror
+
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Shared.Kernel -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Shared\Shared.Kernel\bin\Debug\net10.0\Shared.Kernel.dll
+  Identity.Domain -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Identity\Identity.Domain\bin\Debug\net10.0\Identity.Domain.dll
+  Cashier.Domain -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Cashier\Cashier.Domain\bin\Debug\net10.0\Cashier.Domain.dll
+  Ordering.Domain -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Ordering\Ordering.Domain\bin\Debug\net10.0\Ordering.Domain.dll
+  Shared.Messaging -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Shared\Shared.Messaging\bin\Debug\net10.0\Shared.Messaging.dll
+  Shared.Web -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Shared\Shared.Web\bin\Debug\net10.0\Shared.Web.dll
+  Cashier.Application -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Cashier\Cashier.Application\bin\Debug\net10.0\Cashier.Application.dll
+  Identity.Application -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Identity\Identity.Application\bin\Debug\net10.0\Identity.Application.dll
+  Cashier.UnitTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.UnitTests\bin\Debug\net10.0\Cashier.UnitTests.dll
+  Shared.Messaging.Tests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Shared.Messaging.Tests\bin\Debug\net10.0\Shared.Messaging.Tests.dll
+  Identity.Infrastructure -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Identity\Identity.Infrastructure\bin\Debug\net10.0\Identity.Infrastructure.dll
+  Gateway -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Gateway\bin\Debug\net10.0\Gateway.dll
+  Cashier.Infrastructure -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Cashier\Cashier.Infrastructure\bin\Debug\net10.0\Cashier.Infrastructure.dll
+  Ordering.Application -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Ordering\Ordering.Application\bin\Debug\net10.0\Ordering.Application.dll
+  Gateway.Tests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Gateway.Tests\bin\Debug\net10.0\Gateway.Tests.dll
+  Ordering.Infrastructure -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Ordering\Ordering.Infrastructure\bin\Debug\net10.0\Ordering.Infrastructure.dll
+  Identity.Api -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Identity\Identity.Api\bin\Debug\net10.0\Identity.Api.dll
+  Ordering.UnitTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.UnitTests\bin\Debug\net10.0\Ordering.UnitTests.dll
+  Identity.IntegrationTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Identity.IntegrationTests\bin\Debug\net10.0\Identity.IntegrationTests.dll
+  Seeder -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tools\Seeder\bin\Debug\net10.0\Seeder.dll
+  Ordering.Api -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Ordering\Ordering.Api\bin\Debug\net10.0\Ordering.Api.dll
+  Cashier.Api -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Cashier\Cashier.Api\bin\Debug\net10.0\Cashier.Api.dll
+  Ordering.IntegrationTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.IntegrationTests\bin\Debug\net10.0\Ordering.IntegrationTests.dll
+  Cashier.IntegrationTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.IntegrationTests\bin\Debug\net10.0\Cashier.IntegrationTests.dll
+  Seeder.IntegrationTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Seeder.IntegrationTests\bin\Debug\net10.0\Seeder.IntegrationTests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:06.90
+✔ backend:build (7.8s)
+
+▶ backend:test npm test
+
+> test
+> dotnet test FnbPos.sln --no-build --filter "Category!=Integration"
+
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.UnitTests\bin\Debug\net10.0\Cashier.UnitTests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.IntegrationTests\bin\Debug\net10.0\Cashier.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Identity.IntegrationTests\bin\Debug\net10.0\Identity.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.UnitTests\bin\Debug\net10.0\Ordering.UnitTests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Shared.Messaging.Tests\bin\Debug\net10.0\Shared.Messaging.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.IntegrationTests\bin\Debug\net10.0\Ordering.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Gateway.Tests\bin\Debug\net10.0\Gateway.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Seeder.IntegrationTests\bin\Debug\net10.0\Seeder.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+No test matches the given testcase filter `Category!=Integration` in D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Shared.Messaging.Tests\bin\Debug\net10.0\Shared.Messaging.Tests.dll
+No test matches the given testcase filter `Category!=Integration` in D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.IntegrationTests\bin\Debug\net10.0\Cashier.IntegrationTests.dll
+
+No test matches the given testcase filter `Category!=Integration` in D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Identity.IntegrationTests\bin\Debug\net10.0\Identity.IntegrationTests.dll
+
+
+No test matches the given testcase filter `Category!=Integration` in D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Seeder.IntegrationTests\bin\Debug\net10.0\Seeder.IntegrationTests.dll
+
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 221 ms - Ordering.UnitTests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5, Duration: 210 ms - Cashier.UnitTests.dll (net10.0)
+
+No test matches the given testcase filter `Category!=Integration` in D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.IntegrationTests\bin\Debug\net10.0\Ordering.IntegrationTests.dll
+
+
+Passed!  - Failed:     0, Passed:    21, Skipped:     0, Total:    21, Duration: 2 s - Gateway.Tests.dll (net10.0)
+✔ backend:test (9.7s)
+
+▶ backend:e2e npm run test:e2e
+
+> test:e2e
+> dotnet test FnbPos.sln --filter "Category=Integration"
+
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Shared.Kernel -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Shared\Shared.Kernel\bin\Debug\net10.0\Shared.Kernel.dll
+  Ordering.Domain -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Ordering\Ordering.Domain\bin\Debug\net10.0\Ordering.Domain.dll
+  Cashier.Domain -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Cashier\Cashier.Domain\bin\Debug\net10.0\Cashier.Domain.dll
+  Identity.Domain -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Identity\Identity.Domain\bin\Debug\net10.0\Identity.Domain.dll
+  Shared.Messaging -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Shared\Shared.Messaging\bin\Debug\net10.0\Shared.Messaging.dll
+  Shared.Web -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Shared\Shared.Web\bin\Debug\net10.0\Shared.Web.dll
+  Identity.Application -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Identity\Identity.Application\bin\Debug\net10.0\Identity.Application.dll
+  Cashier.Application -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Cashier\Cashier.Application\bin\Debug\net10.0\Cashier.Application.dll
+  Cashier.UnitTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.UnitTests\bin\Debug\net10.0\Cashier.UnitTests.dll
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.UnitTests\bin\Debug\net10.0\Cashier.UnitTests.dll (.NETCoreApp,Version=v10.0)
+  Ordering.UnitTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.UnitTests\bin\Debug\net10.0\Ordering.UnitTests.dll
+  Ordering.Application -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Ordering\Ordering.Application\bin\Debug\net10.0\Ordering.Application.dll
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.UnitTests\bin\Debug\net10.0\Ordering.UnitTests.dll (.NETCoreApp,Version=v10.0)
+  Shared.Messaging.Tests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Shared.Messaging.Tests\bin\Debug\net10.0\Shared.Messaging.Tests.dll
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Shared.Messaging.Tests\bin\Debug\net10.0\Shared.Messaging.Tests.dll (.NETCoreApp,Version=v10.0)
+  Gateway -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Gateway\bin\Debug\net10.0\Gateway.dll
+  Identity.Infrastructure -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Identity\Identity.Infrastructure\bin\Debug\net10.0\Identity.Infrastructure.dll
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+  Ordering.Infrastructure -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Ordering\Ordering.Infrastructure\bin\Debug\net10.0\Ordering.Infrastructure.dll
+  Gateway.Tests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Gateway.Tests\bin\Debug\net10.0\Gateway.Tests.dll
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Gateway.Tests\bin\Debug\net10.0\Gateway.Tests.dll (.NETCoreApp,Version=v10.0)
+No test matches the given testcase filter `Category=Integration` in D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.UnitTests\bin\Debug\net10.0\Cashier.UnitTests.dll
+No test matches the given testcase filter `Category=Integration` in D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.UnitTests\bin\Debug\net10.0\Ordering.UnitTests.dll
+
+  Cashier.Infrastructure -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Cashier\Cashier.Infrastructure\bin\Debug\net10.0\Cashier.Infrastructure.dll
+
+  Identity.Api -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Identity\Identity.Api\bin\Debug\net10.0\Identity.Api.dll
+A total of 1 test files matched the specified pattern.
+  Identity.IntegrationTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Identity.IntegrationTests\bin\Debug\net10.0\Identity.IntegrationTests.dll
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Identity.IntegrationTests\bin\Debug\net10.0\Identity.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+No test matches the given testcase filter `Category=Integration` in D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Gateway.Tests\bin\Debug\net10.0\Gateway.Tests.dll
+
+  Seeder -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tools\Seeder\bin\Debug\net10.0\Seeder.dll
+  Ordering.Api -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Ordering\Ordering.Api\bin\Debug\net10.0\Ordering.Api.dll
+  Cashier.Api -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\src\Cashier\Cashier.Api\bin\Debug\net10.0\Cashier.Api.dll
+  Ordering.IntegrationTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.IntegrationTests\bin\Debug\net10.0\Ordering.IntegrationTests.dll
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Ordering.IntegrationTests\bin\Debug\net10.0\Ordering.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+  Cashier.IntegrationTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.IntegrationTests\bin\Debug\net10.0\Cashier.IntegrationTests.dll
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Cashier.IntegrationTests\bin\Debug\net10.0\Cashier.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5, Duration: 1 s - Cashier.IntegrationTests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5, Duration: 3 s - Identity.IntegrationTests.dll (net10.0)
+  Seeder.IntegrationTests -> D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Seeder.IntegrationTests\bin\Debug\net10.0\Seeder.IntegrationTests.dll
+Test run for D:\src\vibe\sdlc-fnb-microservices-cv\backend\tests\Seeder.IntegrationTests\bin\Debug\net10.0\Seeder.IntegrationTests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration: 47 s - Shared.Messaging.Tests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 9 s - Ordering.IntegrationTests.dll (net10.0)
+
+Passed!  - Failed:     0, Passed:     8, Skipped:     0, Total:     8, Duration: 4 s - Seeder.IntegrationTests.dll (net10.0)
+✔ backend:e2e (79.2s)
+
+▶ web:lint node ../scripts/sdlc/lint-ratchet.mjs web
+✔ web: không có lỗi lint mới (nợ tồn đọng: 0/0).
+✔ web:lint (3.0s)
+
+▶ web:build npm run build
+
+> fnb-pos-web@0.1.0 build
+> tsc -b && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+node_modules/zod/v4/core/regexes.js (74:0): A comment
+
+"/** Anchors a pattern source. The interpolation lives here rather than at the call site because
+ * esbuild will not drop a `@__PURE__` call whose own argument interpolates a variable, but it
+ * will drop `anchor(dateSource)`. Keeping it inline pinned `date` into every bundle. */"
+
+in "node_modules/zod/v4/core/regexes.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/zod/v4/core/util.js (400:0): A comment
+
+"// Wrapped in a `@__PURE__` IIFE: esbuild never tree-shakes a top-level initializer that contains a member access on `Number`, so the bare object literal survived into every bundle."
+
+in "node_modules/zod/v4/core/util.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/@microsoft/signalr/dist/esm/Utils.js (190:0): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@microsoft/signalr/dist/esm/Utils.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/@microsoft/signalr/dist/esm/Utils.js (208:0): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@microsoft/signalr/dist/esm/Utils.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+✓ 368 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     0.40 kB │ gzip:   0.27 kB
+dist/assets/index-Vcm2rBl6.css     14.15 kB │ gzip:   3.60 kB
+dist/assets/_auth-RKwc8Po1.js       1.21 kB │ gzip:   0.69 kB
+dist/assets/card-CFYIidoS.js        1.28 kB │ gzip:   0.41 kB
+dist/assets/kitchen-riwZCBbg.js     2.77 kB │ gzip:   1.35 kB
+dist/assets/pos-DJgbUFvq.js        12.32 kB │ gzip:   4.80 kB
+dist/assets/button-DIKFG5S7.js     29.94 kB │ gzip:   9.68 kB
+dist/assets/login-CU-vm2Op.js      63.31 kB │ gzip:  16.45 kB
+dist/assets/useShift-CX9ge6ww.js   68.77 kB │ gzip:  18.90 kB
+dist/assets/index-DCiPf3TL.js     452.65 kB │ gzip: 141.81 kB
+✓ built in 4.12s
+✔ web:build (10.3s)
+
+▶ web:test npm test
+
+> fnb-pos-web@0.1.0 test
+> vitest run
+
+
+ RUN  v5.0.1 D:/src/vibe/sdlc-fnb-microservices-cv/web
+
+
+ Test Files  4 passed (4)
+      Tests  11 passed (11)
+   Start at  17:20:54
+   Duration  2.71s (environment 72%, transform 12%, import 12%, tests 3%)
+
+✔ web:test (4.6s)
+
+▶ web:e2e npm run test:e2e
+
+> fnb-pos-web@0.1.0 test:e2e
+> playwright test
+
+
+Running 3 tests using 3 workers
+
+  ok 1 e2e\login.spec.ts:3:1 › đăng nhập sai → đúng câu thông báo của server (1.5s)
+  ok 3 e2e\offline-banner.spec.ts:4:1 › mất mạng → banner đỏ + khoá "Gửi bếp"; có mạng lại → tự hồi phục, không reload (2.2s)
+  ok 2 e2e\order-to-kitchen.spec.ts:17:1 › POS "Gửi bếp" → bếp thấy đơn < 2s; bếp "Xong" → POS thấy < 2s (4.3s)
+
+  3 passed (5.8s)
+✔ web:e2e (7.2s)
+
+────────────────────────────────────────────────────
+  ✔ backend:format
+  ✔ backend:build
+  ✔ backend:test
+  ✔ backend:e2e
+  ✔ web:lint
+  ✔ web:build
+  ✔ web:test
+  ✔ web:e2e
+────────────────────────────────────────────────────
+
+✅ Toàn bộ cổng XANH.
+   Đã ghi .brain/sdlc-state.json. Bước tiếp: thu thập bằng chứng trực quan → /sdlc:verify
+

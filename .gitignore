@@ -1,3 +1,10 @@
 node_modules/
 .brain/
 .vs/
+bin/
+obj/
+dist/
+.env
+*.user
+test-results/
+playwright-report/

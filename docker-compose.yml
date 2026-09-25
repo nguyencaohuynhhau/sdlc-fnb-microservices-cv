@@ -1,0 +1,131 @@
+name: fnb
+
+# Chung cho 4 dịch vụ .NET. Healthcheck gọi GET /healthz bằng bash /dev/tcp — image aspnet không có curl,
+# cổng lấy từ ASPNETCORE_HTTP_PORTS của chính container ($$ để compose không tự thay).
+x-dotnet: &dotnet
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/$$ASPNETCORE_HTTP_PORTS && printf 'GET /healthz HTTP/1.0\r\n\r\n' >&3 && grep -q ' 200 ' <&3"]
+    interval: 3s
+    timeout: 3s
+    retries: 40
+
+x-env: &env
+  ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:?đặt ASPNETCORE_ENVIRONMENT trong .env}
+  JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?đặt JWT_SIGNING_KEY trong .env}
+  ConnectionStrings__Kafka: kafka:9092
+  ConnectionStrings__Redis: redis:6379
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?đặt POSTGRES_PASSWORD trong .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # Chỉ mở cho máy dev (seeder chạy từ host); cổng lạ để không đụng Postgres cài sẵn.
+    ports: ["127.0.0.1:54329:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres && psql -U postgres -lqt | grep -q fnb_reporting"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 5s
+      timeout: 10s
+      retries: 24
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Ba dịch vụ KHÔNG publish cổng ra host: chỉ đi được qua gateway (và vẫn tự kiểm JWT).
+  identity:
+    <<: *dotnet
+    build: { context: ./backend, args: { PROJECT: Identity.Api } }
+    environment:
+      <<: *env
+      ASPNETCORE_HTTP_PORTS: "8081"
+      ConnectionStrings__Identity: Host=postgres;Database=fnb_identity;Username=postgres;Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  ordering:
+    <<: *dotnet
+    build: { context: ./backend, args: { PROJECT: Ordering.Api } }
+    environment:
+      <<: *env
+      ASPNETCORE_HTTP_PORTS: "8082"
+      ConnectionStrings__Ordering: Host=postgres;Database=fnb_ordering;Username=postgres;Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  cashier:
+    <<: *dotnet
+    build: { context: ./backend, args: { PROJECT: Cashier.Api } }
+    environment:
+      <<: *env
+      ASPNETCORE_HTTP_PORTS: "8083"
+      ConnectionStrings__Cashier: Host=postgres;Database=fnb_cashier;Username=postgres;Password=${POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  # Cửa vào duy nhất. Chỉ bind localhost: máy dev dùng được, máy khác trong LAN thì không.
+  gateway:
+    <<: *dotnet
+    build: { context: ./backend, args: { PROJECT: Gateway } }
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      <<: *env
+      ASPNETCORE_HTTP_PORTS: "8080"
+      CORS_ORIGINS: ${CORS_ORIGINS:?đặt CORS_ORIGINS trong .env}
+      Services__Identity: http://identity:8081
+      Services__Ordering: http://ordering:8082
+      Services__Cashier: http://cashier:8083
+    depends_on:
+      identity: { condition: service_healthy }
+      ordering: { condition: service_healthy }
+      cashier: { condition: service_healthy }
+
+  # SPA qua nginx; nginx proxy /api, /healthz, /hubs sang gateway trong mạng compose.
+  web:
+    build: ./web
+    restart: unless-stopped
+    ports: ["127.0.0.1:5173:80"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      gateway: { condition: service_healthy }
+
+volumes:
+  pgdata:
