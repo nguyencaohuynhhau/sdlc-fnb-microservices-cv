@@ -2,10 +2,8 @@
   "_comment": "Danh sách DUY NHẤT các file được phép có [AllowAnonymous] (eval P02). Chỉ được co lại; thêm file mới cần người duyệt.",
   "allowAnonymousFiles": [
     "backend/src/Identity/Identity.Api/Controllers/AuthController.cs",
-    "backend/src/Identity/Identity.Api/Program.cs",
-    "backend/src/Ordering/Ordering.Api/Program.cs",
-    "backend/src/Cashier/Cashier.Api/Program.cs",
+    "backend/src/Shared/Shared.Web/WebExtensions.cs",
     "backend/src/Gateway/Program.cs"
   ],
-  "_note": "AuthController: login + refresh. Program.cs: chỉ MapGet(\"/healthz\").AllowAnonymous()."
+  "_note": "AuthController: login + refresh. WebExtensions.MapHealthz và Gateway: chỉ /healthz."
 }

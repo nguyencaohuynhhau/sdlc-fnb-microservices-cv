@@ -142,6 +142,11 @@ web/
 └── e2e/{order-to-kitchen,offline-banner,login}.spec.ts
 ```
 
+**Cập nhật khi build (B1):**
+- Thêm `backend/src/Shared/Shared.Web/` (`JwtSettings.cs`, `WebExtensions.cs`): cấu hình JWT, FallbackPolicy, ProblemDetails tiếng Việt và `/healthz` dùng chung cho 3 dịch vụ + gateway, thay vì chép 4 lần. `public-endpoints.json` trỏ tới file này thay cho các `Program.cs`.
+- Bỏ `IClock.cs`: dùng `TimeProvider` có sẵn của .NET. `IntegrationEvent.cs` và `Topics.cs` chuyển sang `Shared.Kernel` để project Domain khai báo sự kiện mà không phụ thuộc EF/Kafka.
+- `FluentAssertions` ghim 7.2.0 (Apache-2.0); bản 8.x đổi sang giấy phép thương mại.
+
 **Không** chạm tới file nào ngoài danh sách này mà không cập nhật plan trước. Đặc biệt:
 **không sửa** `scripts/sdlc/*.mjs`, `AGENTS.md`, `.claude/**` — đó là file của con người.
 
@@ -166,7 +171,7 @@ backend), **W** (web), **I** (tích hợp). Xem mục 3 để biết nhóm nào 
 
 ### Nhóm B — Backend
 
-- [ ] **B1** Skeleton solution: `FnbPos.sln`, `Directory.Build.props`, `Directory.Packages.props` (ghi **mọi** version ở mục 4), `.editorconfig`, `Shared.Kernel`, `Shared.Messaging` (mới có kiểu dữ liệu, chưa có host).
+- [x] **B1** Skeleton solution: `FnbPos.sln`, `Directory.Build.props`, `Directory.Packages.props` (ghi **mọi** version ở mục 4), `.editorconfig`, `Shared.Kernel`, `Shared.Messaging` (mới có kiểu dữ liệu, chưa có host).
   → kiểm chứng: `npm --prefix backend run build` xanh với `-warnaserror`; `npm --prefix backend run format` xanh.
 - [ ] **B2** `docker-compose.yml` phần hạ tầng: `postgres:17` + `docker/postgres-init.sql`, `apache/kafka:3.9` (KRaft, 1 node, `KAFKA_AUTO_CREATE_TOPICS_ENABLE=true`), `redis:7`. Healthcheck cho cả ba.
   → kiểm chứng: `docker compose up -d postgres kafka redis && docker compose ps` — 3 dòng `healthy` trong ≤ 60s; `docker compose exec postgres psql -U postgres -lqt | grep -c fnb_` = 5.
