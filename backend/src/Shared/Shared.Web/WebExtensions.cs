@@ -68,7 +68,7 @@ public static class WebExtensions
     public static IEndpointConventionBuilder MapHealthz(this IEndpointRouteBuilder app) =>
         app.MapGet("/healthz", () => "ok").AllowAnonymous();
 
-    /// <summary>Trả ProblemDetails 409/404 với <c>detail</c> = câu tiếng Việt trong exception.</summary>
+    /// <summary>Trả ProblemDetails 409/404/400 với <c>detail</c> = câu tiếng Việt trong exception.</summary>
     private sealed class DomainExceptionHandler(IProblemDetailsService problems) : IExceptionHandler
     {
         public async ValueTask<bool> TryHandleAsync(HttpContext http, Exception ex, CancellationToken ct)
@@ -78,7 +78,12 @@ public static class WebExtensions
                 return false;
             }
 
-            var status = domain is NotFoundException ? StatusCodes.Status404NotFound : StatusCodes.Status409Conflict;
+            var status = domain switch
+            {
+                NotFoundException => StatusCodes.Status404NotFound,
+                InvalidRequestException => StatusCodes.Status400BadRequest,
+                _ => StatusCodes.Status409Conflict,
+            };
             http.Response.StatusCode = status;
             return await problems.TryWriteAsync(new ProblemDetailsContext
             {

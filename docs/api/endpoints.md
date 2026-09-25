@@ -74,9 +74,9 @@ Lát A: `countedCash`/`expectedCash`/`variance` luôn `null`; lát B thêm body 
 | GET | `/api/orders/{id}` | Cashier, Owner, Kitchen | — | `200 Order` + `ETag` | `404` "Không tìm thấy đơn." |
 | POST | `/api/orders` | Cashier, Owner | `{ items: [{ menuItemId, qty: 1–99 }] }` (1–100 dòng) | `201 Order` + `ETag` | `409` "Chưa mở ca làm việc. Mở ca trước khi nhận đơn." · `409` "Món {tên} vừa hết hàng, vui lòng bỏ khỏi đơn." · `400` "Món không có trong thực đơn." |
 | POST | `/api/orders/{id}/items` | Cashier, Owner | `{ menuItemId, qty: 1–99 }` + `If-Match` | `200 Order` | `409` "Đơn đã đóng, không thêm món được." · như trên |
-| DELETE | `/api/orders/{id}/items/{itemId}` | Cashier, Owner | `If-Match` | `200 Order` (món → `Cancelled`) | `409` "Món này bếp đã làm, cần bếp xác nhận mới huỷ được." |
+| DELETE | `/api/orders/{id}/items/{itemId}` | Cashier, Owner | `If-Match` | `200 Order` (món → `Cancelled`) | `409` "Món này bếp đã làm, cần bếp xác nhận mới huỷ được." · `409` "Đơn đã đóng, không sửa được nữa." · `404` "Không tìm thấy món trong đơn." |
 | POST | `/api/orders/{id}/cancel` | Cashier, Owner | `If-Match` | `200 Order` (→ `Cancelled`) | `409` "Chỉ huỷ được đơn chưa thanh toán." |
-| PATCH | `/api/orders/{id}/items/{itemId}/status` | Kitchen, Owner | `{ status: 'Preparing' \| 'Done' }` + `If-Match` | `200 Order` | `409` "Món phải chuyển lần lượt Chờ → Đang làm → Xong." |
+| PATCH | `/api/orders/{id}/items/{itemId}/status` | Kitchen, Owner | `{ status: 'Preparing' \| 'Done' }` + `If-Match` | `200 Order` | `409` "Món phải chuyển lần lượt Chờ → Đang làm → Xong." · `409` "Đơn đã đóng, không sửa được nữa." · `404` "Không tìm thấy món trong đơn." |
 | GET | `/api/kitchen/orders` | Kitchen, Owner | — | `200 Order[]` đơn `Open` của ca hiện hành, cũ nhất trước | |
 
 ## SignalR — `/hubs/orders`

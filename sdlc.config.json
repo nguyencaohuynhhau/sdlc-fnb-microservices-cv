@@ -55,7 +55,12 @@
     "Các file test hồi quy KHÔNG ĐƯỢC biến mất (eval E05). Agent bị dồn ép hay 'dọn dẹp'",
     "đúng cái test đang chặn nó. Liệt kê ở đây những test mua bằng một sự cố thật."
   ],
-  "requiredTests": [],
+  "requiredTests": [
+    "backend/tests/Ordering.IntegrationTests/ConcurrencyTests.cs",
+    "backend/tests/Ordering.IntegrationTests/OutboxTests.cs",
+    "backend/tests/Cashier.IntegrationTests/ShiftTests.cs",
+    "backend/tests/Identity.IntegrationTests/AuthTests.cs"
+  ],
   "_comment_codeExtensions": "Đuôi file được coi là mã nguồn — quyết định cái gì kích hoạt cổng chặn commit.",
   "codeExtensions": [
     ".ts",
