@@ -6,7 +6,7 @@
 
 | ID | Tiêu đề | type | area | size | priority | status |
 |----|---------|------|------|------|----------|--------|
-| [01-260925-fnb-pos-core](01-260925-fnb-pos-core/intent.md) | Có một hệ thống F&B chạy thật để chứng minh năng lực microservices khi phỏng vấn | feature | backend, web | L | P1 | building — lát A shipped 2026-09-25; lát B/C/D chưa plan |
+| [01-260925-fnb-pos-core](01-260925-fnb-pos-core/intent.md) | Có một hệ thống F&B chạy thật để chứng minh năng lực microservices khi phỏng vấn | feature | backend, web | L | P1 | building — lát A shipped 2026-09-25; lát B planned (chờ duyệt); lát C/D chưa plan |
 
 ## Hàng chờ
 

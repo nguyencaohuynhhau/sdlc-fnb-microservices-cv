@@ -45,13 +45,14 @@ export default [
   },
   {
     // Lát A: 4 devDependency web được cài trước khi hỏi, chỉ lộ ra ở /sdlc:ship.
-    // Gói hợp lệ = tên trong backtick ở dòng bảng mục 4 của một plan.md nào đó
-    // (chỉ dòng bảng — văn xuôi mục 4 còn liệt kê cả gói bị cấm).
+    // Gói hợp lệ = tên trong backtick ở dòng bảng mục 4 của một plan*.md nào đó
+    // (plan-slice-a.md là plan lát đã ship, vẫn tính). Chỉ dòng bảng — văn xuôi
+    // mục 4 còn liệt kê cả gói bị cấm.
     id: 'P04',
     title: 'Mọi dependency (web/package.json, Directory.Packages.props) đã được duyệt ở plan §4',
     run: () => {
       const approved = new Set();
-      for (const plan of walk(join(ROOT, 'docs/intents')).filter((f) => f.endsWith('plan.md') && !f.includes('_templates'))) {
+      for (const plan of walk(join(ROOT, 'docs/intents')).filter((f) => /[\\/]plan[^\\/]*\.md$/.test(f) && !f.includes('_templates'))) {
         const s = readFileSync(plan, 'utf8');
         const sec = s.slice(s.search(/^## 4\./m), s.search(/^## 5\./m));
         for (const row of sec.split('\n').filter((l) => l.startsWith('|'))) {
