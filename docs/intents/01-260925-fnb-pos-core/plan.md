@@ -2,7 +2,7 @@
 id: 01-260925-fnb-pos-core
 intent: ./intent.md
 spec: ./spec.md
-status: building
+status: verified
 branch: feat/01-260925-fnb-pos-core-slice-a
 generated_by: /sdlc:plan
 created: 2026-09-25
@@ -37,15 +37,17 @@ npm run sdlc:verify -- --all --e2e           # + backend integration (Testcontai
 
 Cộng thêm các bằng chứng cụ thể của lát này:
 
-- [ ] `backend/tests/Ordering.IntegrationTests/ConcurrencyTests.cs` — ca `Order_ConcurrentUpdate_SecondWriterGets409` đỏ khi bỏ `.UseXminAsConcurrencyToken()`, xanh khi có
-- [ ] `backend/tests/Ordering.IntegrationTests/OutboxTests.cs` — ca `Outbox_CrashBeforePublish_PublishesOnRestart` đỏ khi publisher không quét `published_at IS NULL` lúc khởi động
-- [ ] `backend/tests/Cashier.IntegrationTests/ShiftTests.cs` — ca `OpenShift_Concurrent_OnlyOneSucceeds` đỏ khi bỏ unique partial index
-- [ ] `backend/tests/Identity.IntegrationTests/AuthTests.cs` — ca `Login_TenFailures_Returns423` và `Refresh_ReusedToken_RevokesFamily`
-- [ ] `web/e2e/order-to-kitchen.spec.ts` — mốc thời gian từ bấm "Gửi bếp" tới đơn xuất hiện ở tab bếp **< 2000ms**, và từ bếp bấm "Xong" tới POS đổi trạng thái **< 2000ms**; chạy **qua gateway 8080**, không gọi thẳng 8082
-- [ ] `web/e2e/offline-banner.spec.ts` — chặn mạng → banner + nút "Gửi bếp" disabled; mở lại → tự hồi phục, không reload
-- [ ] Ảnh trong `docs/evidence/01-260925-fnb-pos-core/`: `a-compose-ps.png`, `a-login-error.png`, `a-pos-empty-menu.png`, `a-pos-order.png`, `a-kitchen-board.png`, `a-offline-banner.png`, `a-conflict-409.png`, `a-no-open-shift.png`
-- [ ] Sau `docker compose up` xong, `git status --porcelain -uall | grep -E '(^|/)(bin|obj|dist|node_modules)/'` **rỗng** (không có build output lọt vào cổng)
-- [ ] Các test trong `requiredTests` (khai báo ở B0) tồn tại và xanh
+- [x] `backend/tests/Ordering.IntegrationTests/ConcurrencyTests.cs` — ca `Order_ConcurrentUpdate_SecondWriterGets409` đỏ khi bỏ `.UseXminAsConcurrencyToken()`, xanh khi có
+- [x] `backend/tests/Ordering.IntegrationTests/OutboxTests.cs` — ca `Outbox_CrashBeforePublish_PublishesOnRestart` đỏ khi publisher không quét `published_at IS NULL` lúc khởi động
+- [x] `backend/tests/Cashier.IntegrationTests/ShiftTests.cs` — ca `OpenShift_Concurrent_OnlyOneSucceeds` đỏ khi bỏ unique partial index
+- [x] `backend/tests/Identity.IntegrationTests/AuthTests.cs` — ca `Login_TenFailures_Returns423` và `Refresh_ReusedToken_RevokesFamily`
+- [x] `web/e2e/order-to-kitchen.spec.ts` — mốc thời gian từ bấm "Gửi bếp" tới đơn xuất hiện ở tab bếp **< 2000ms**, và từ bếp bấm "Xong" tới POS đổi trạng thái **< 2000ms**; chạy **qua gateway 8080**, không gọi thẳng 8082
+- [x] `web/e2e/offline-banner.spec.ts` — chặn mạng → banner + nút "Gửi bếp" disabled; mở lại → tự hồi phục, không reload
+- [x] Ảnh trong `docs/evidence/01-260925-fnb-pos-core/`: `a-compose-ps.png`, `a-login-error.png`, `a-pos-empty-menu.png`, `a-pos-order.png`, `a-kitchen-board.png`, `a-offline-banner.png`, `a-conflict-409.png`, `a-no-open-shift.png`
+- [x] Sau `docker compose up` xong, `git status --porcelain -uall | grep -E '(^|/)(bin|obj|dist|node_modules)/'` **rỗng** (không có build output lọt vào cổng)
+- [x] Các test trong `requiredTests` (khai báo ở B0) tồn tại và xanh
+
+_Verify 2026-09-25 @ `cc7c886`: 81/81 test + 8/8 eval xanh — xem `docs/evidence/01-260925-fnb-pos-core/verify.md`._
 
 ## 1. Các file sẽ chạm
 
