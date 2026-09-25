@@ -2,7 +2,9 @@
 id: 01-260925-fnb-pos-core
 intent: ./intent.md
 spec: ./spec.md
-status: verified
+status: shipped
+shipped: 2026-09-25
+pr: https://github.com/nguyencaohuynhhau/sdlc-fnb-microservices-cv/compare/main...feat/01-260925-fnb-pos-core-slice-a  # gh CLI không có; thay bằng link PR sau khi bấm tạo
 branch: feat/01-260925-fnb-pos-core-slice-a
 generated_by: /sdlc:plan
 created: 2026-09-25
@@ -303,8 +305,7 @@ ràng buộc chặn merge cho lát này:
 | backend (test) | `xunit`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`, `FluentAssertions`, `Testcontainers.PostgreSql`, `Testcontainers.Kafka`, `Testcontainers.Redis`, `Microsoft.AspNetCore.Mvc.Testing` | test trên hạ tầng thật |
 | web | `react`, `react-dom`, `@tanstack/react-router`, `@tanstack/router-plugin`, `@tanstack/react-query`, `@tanstack/react-form`, `@tanstack/react-table`, `zod`, `zustand`, `@microsoft/signalr`, `tailwindcss`, `@tailwindcss/vite`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `sonner`, `radix-ui` (theo shadcn init) | stack chỉ định |
 | web (dev) | `vite`, `@vitejs/plugin-react`, `babel-plugin-react-compiler`, `typescript`, `eslint` + `typescript-eslint` + `eslint-plugin-react-hooks`, `vitest`, `@testing-library/react`, `jsdom`, `@playwright/test`, `shadcn` (CLI, chạy qua npx) | build/lint/test |
-
-**Chờ duyệt (phát sinh khi build W1):** web (dev) `@types/react`, `@types/react-dom`, `@types/node` (kiểu cho TS strict), `@testing-library/dom` (peer dependency bắt buộc của `@testing-library/react` 16). Chỉ là kiểu/đồ test, không vào bundle.
+| web (dev, duyệt 2026-09-25 lúc ship) | `@types/react`, `@types/react-dom`, `@types/node`, `@testing-library/dom` | Phát sinh khi build W1, **cài trước khi hỏi** — vi phạm, bắt được ở `/sdlc:ship`. Kiểu cho TS strict và peer dependency bắt buộc của `@testing-library/react` 16; không vào bundle. Từ nay eval `P04` chặn tình huống này |
 
 `Grpc.*` và `@tanstack/react-table` **chưa** cần ở lát A — table để W1 cài sẵn vì shadcn `table`
 component cần; gRPC để lát B. Không cài `MediatR`, `AutoMapper`, `FluentValidation`, `MassTransit`, `Serilog`.

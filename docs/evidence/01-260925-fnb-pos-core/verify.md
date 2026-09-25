@@ -70,4 +70,4 @@ Tổng **81/81 test xanh**.
 - Tiêu chí 4–8, 10, 12 và phần ca đêm của 9 thuộc lát B/C/D — chưa có mã, chưa kiểm.
 - Độ trễ đo trên một máy dev (Docker Desktop, Windows), một người dùng mỗi vai trò; chưa đo khi tải cao.
 - Chưa chạy trên CI (`.github/workflows/ci.yml` chưa được kích hoạt bằng push — cần người điều phối cho phép push).
-- 4 devDependency web ngoài danh sách đã duyệt (`@types/react`, `@types/react-dom`, `@types/node`, `@testing-library/dom`) vẫn chờ người điều phối duyệt.
+- 4 devDependency web ngoài danh sách đã duyệt (`@types/react`, `@types/react-dom`, `@types/node`, `@testing-library/dom`) đã được người điều phối duyệt lúc ship (2026-09-25) — xem plan §4.

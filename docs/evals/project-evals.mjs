@@ -43,4 +43,29 @@ export default [
       return bad.length ? { ok: false, detail: bad.join(', ') } : { ok: true };
     },
   },
+  {
+    // Lát A: 4 devDependency web được cài trước khi hỏi, chỉ lộ ra ở /sdlc:ship.
+    // Gói hợp lệ = tên trong backtick ở dòng bảng mục 4 của một plan.md nào đó
+    // (chỉ dòng bảng — văn xuôi mục 4 còn liệt kê cả gói bị cấm).
+    id: 'P04',
+    title: 'Mọi dependency (web/package.json, Directory.Packages.props) đã được duyệt ở plan §4',
+    run: () => {
+      const approved = new Set();
+      for (const plan of walk(join(ROOT, 'docs/intents')).filter((f) => f.endsWith('plan.md') && !f.includes('_templates'))) {
+        const s = readFileSync(plan, 'utf8');
+        const sec = s.slice(s.search(/^## 4\./m), s.search(/^## 5\./m));
+        for (const row of sec.split('\n').filter((l) => l.startsWith('|'))) {
+          for (const [, name] of row.matchAll(/`([^`\s]+)`/g)) approved.add(name);
+        }
+      }
+      const pkg = JSON.parse(readFileSync(join(ROOT, 'web/package.json'), 'utf8'));
+      const props = readFileSync(join(ROOT, 'backend/Directory.Packages.props'), 'utf8');
+      const used = [
+        ...Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }),
+        ...[...props.matchAll(/PackageVersion Include="([^"]+)"/g)].map((m) => m[1]),
+      ];
+      const bad = used.filter((n) => !approved.has(n));
+      return bad.length ? { ok: false, detail: `Dependency chưa duyệt: ${bad.join(', ')}` } : { ok: true };
+    },
+  },
 ];
