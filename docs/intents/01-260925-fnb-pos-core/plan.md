@@ -2,7 +2,9 @@
 id: 01-260925-fnb-pos-core
 intent: ./intent.md
 spec: ./spec.md
-status: verified
+status: shipped
+shipped: 2026-09-26
+pr: https://github.com/nguyencaohuynhhau/sdlc-fnb-microservices-cv/pull/2
 branch: feat/01-260925-fnb-pos-core-slice-b
 generated_by: /sdlc:plan
 created: 2026-09-25
