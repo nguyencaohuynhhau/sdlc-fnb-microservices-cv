@@ -30,6 +30,7 @@ export const OrderSchema = z.object({
   status: z.enum(['Open', 'Paid', 'Cancelled']),
   total: z.number(),
   createdAt: z.string(),
+  paidAt: z.string().nullable(),
   version: z.number().int(),
   items: z.array(OrderItemSchema),
 })

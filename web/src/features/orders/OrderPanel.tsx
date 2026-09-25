@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -5,9 +6,12 @@ import { useIsOnline } from '@/lib/online'
 import { useOrdersHub } from '@/lib/signalr'
 import { cn, formatVnd } from '@/lib/utils'
 import { useCart } from '@/stores/ui'
+import { PaymentForm } from '@/features/payment/PaymentForm'
+import { Receipt } from '@/features/payment/Receipt'
+import { usePayOrder } from '@/features/payment/usePayOrder'
 import { useCurrentShift, useOrderingShift } from '@/features/shift/useShift'
 import { DraftOrderSchema, itemStatusLabel } from './orderSchemas'
-import { useCancelItem, useCancelOrder, useCreateOrder, useOpenOrders } from './useOrders'
+import { useCancelItem, useCancelOrder, useActiveOrders, useCreateOrder } from './useOrders'
 
 export function OrderPanel() {
   const shift = useCurrentShift()
@@ -22,6 +26,8 @@ export function OrderPanel() {
   const decrement = useCart((s) => s.decrement)
   const clear = useCart((s) => s.clear)
   const create = useCreateOrder()
+  // Ở đây chứ không ở thẻ đơn: đơn đã thu có thể rời danh sách, biên nhận vẫn phải còn.
+  const pay = usePayOrder()
 
   const draft = DraftOrderSchema.safeParse({ items: lines.map(({ menuItemId, qty }) => ({ menuItemId, qty })) })
   const draftTotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0)
@@ -29,6 +35,10 @@ export function OrderPanel() {
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      {pay.data && pay.variables && (
+        <Receipt order={pay.variables.order} receipt={pay.data} onDone={pay.reset} />
+      )}
+
       <Card aria-label="Đơn nháp">
         <CardHeader>
           <CardTitle>Đơn mới</CardTitle>
@@ -71,16 +81,19 @@ export function OrderPanel() {
         </CardContent>
       </Card>
 
-      <OpenOrders shiftId={shiftId} online={online} />
+      <ActiveOrders shiftId={shiftId} online={online} pay={pay} />
     </div>
   )
 }
 
-function OpenOrders({ shiftId, online }: { shiftId: string | undefined; online: boolean }) {
-  const orders = useOpenOrders(shiftId)
+type ActiveOrdersProps = { shiftId: string | undefined; online: boolean; pay: ReturnType<typeof usePayOrder> }
+
+function ActiveOrders({ shiftId, online, pay }: ActiveOrdersProps) {
+  const orders = useActiveOrders(shiftId)
   const cancelItem = useCancelItem()
   const cancelOrder = useCancelOrder()
-  const busy = !online || cancelItem.isPending || cancelOrder.isPending
+  const [payingId, setPayingId] = useState<string | null>(null)
+  const busy = !online || cancelItem.isPending || cancelOrder.isPending || pay.isPending
 
   if (!shiftId) return null
   if (orders.isPending) return <p className="text-muted-foreground text-sm">Đang tải đơn…</p>
@@ -88,12 +101,15 @@ function OpenOrders({ shiftId, online }: { shiftId: string | undefined; online: 
   if (orders.data.length === 0) return <p className="text-muted-foreground text-sm">Chưa có đơn nào trong ca.</p>
 
   return (
-    <section aria-label="Đơn đang mở" className="flex flex-col gap-3">
+    <section aria-label="Đơn trong ca" className="flex flex-col gap-3">
       {orders.data.map((order) => (
         <Card key={order.id} data-testid={`pos-order-${order.code}`}>
           <CardHeader>
             <CardTitle>Đơn #{order.code}</CardTitle>
-            <span className="text-sm font-medium tabular-nums">{formatVnd(order.total)}</span>
+            <span className="flex items-center gap-2 text-sm font-medium tabular-nums">
+              {order.status === 'Paid' && <Badge>Đã thu</Badge>}
+              {formatVnd(order.total)}
+            </span>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             {order.items.map((item) => (
@@ -102,7 +118,7 @@ function OpenOrders({ shiftId, online }: { shiftId: string | undefined; online: 
                   {item.qty} × {item.name}
                 </span>
                 <Badge variant={item.status === 'Done' ? 'default' : 'secondary'}>{itemStatusLabel[item.status]}</Badge>
-                {item.status === 'Pending' && (
+                {order.status === 'Open' && item.status === 'Pending' && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -115,9 +131,19 @@ function OpenOrders({ shiftId, online }: { shiftId: string | undefined; online: 
                 )}
               </div>
             ))}
-            <Button variant="destructive" size="sm" disabled={busy} onClick={() => cancelOrder.mutate(order)}>
-              Huỷ đơn
-            </Button>
+            {order.status === 'Open' &&
+              (payingId === order.id ? (
+                <PaymentForm order={order} pay={pay} online={online} onClose={() => setPayingId(null)} />
+              ) : (
+                <div className="flex gap-2">
+                  <Button className="flex-1" disabled={busy || order.total <= 0} onClick={() => setPayingId(order.id)}>
+                    Thu tiền
+                  </Button>
+                  <Button variant="destructive" size="sm" disabled={busy} onClick={() => cancelOrder.mutate(order)}>
+                    Huỷ đơn
+                  </Button>
+                </div>
+              ))}
           </CardContent>
         </Card>
       ))}

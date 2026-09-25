@@ -16,6 +16,8 @@ export type ApiOptions = {
   body?: unknown
   /** Phiên bản đơn (`version`) — gửi thành header `If-Match` cho lệnh ghi lên đơn đã có. */
   ifMatch?: number
+  /** Khoá chống thu trùng → header `Idempotency-Key`. Retry sau refresh 401 gửi lại đúng khoá này. */
+  idempotencyKey?: string
   /** false = endpoint public (login, refresh, healthz): không đính Bearer, không refresh khi 401. */
   auth?: boolean
 }
@@ -64,6 +66,7 @@ async function send(path: string, opts: ApiOptions, token: string | null): Promi
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
   if (token) headers.Authorization = `Bearer ${token}`
   if (opts.ifMatch !== undefined) headers['If-Match'] = `"${opts.ifMatch}"`
+  if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey
   try {
     return await fetch(path, {
       method: opts.method ?? 'GET',

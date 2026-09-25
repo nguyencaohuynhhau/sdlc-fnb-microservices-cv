@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useIsOnline } from '@/lib/online'
-import { useCloseShift, useCurrentShift, useOpenShift, useOrderingShift } from './useShift'
+import { CloseShiftForm } from './CloseShiftForm'
+import { useCurrentShift, useOpenShift, useOrderingShift } from './useShift'
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 
@@ -9,12 +11,14 @@ export function ShiftBar() {
   const shift = useCurrentShift()
   const orderingShift = useOrderingShift(shift.data?.id)
   const open = useOpenShift()
-  const close = useCloseShift()
+  // Giữ ở thanh ca: đóng xong ca biến mất nhưng bảng tổng kết vẫn phải còn tới khi bấm "Xong".
+  const [closingId, setClosingId] = useState<string | null>(null)
   const online = useIsOnline()
   const current = shift.data
   const syncing = !!current && orderingShift.data?.shiftId !== current.id
 
   return (
+    <>
     <div className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2" data-testid="shift-bar">
       {shift.isPending ? (
         <span className="text-muted-foreground">Đang tải ca…</span>
@@ -27,7 +31,7 @@ export function ShiftBar() {
         <span className="text-destructive font-medium">Chưa mở ca làm việc. Mở ca trước khi nhận đơn.</span>
       )}
       {current ? (
-        <Button variant="outline" size="sm" disabled={!online || close.isPending} onClick={() => close.mutate(current.id)}>
+        <Button variant="outline" size="sm" disabled={!online || !!closingId} onClick={() => setClosingId(current.id)}>
           Đóng ca
         </Button>
       ) : (
@@ -36,5 +40,7 @@ export function ShiftBar() {
         </Button>
       )}
     </div>
+    {closingId && <CloseShiftForm shiftId={closingId} onDone={() => setClosingId(null)} />}
+    </>
   )
 }
