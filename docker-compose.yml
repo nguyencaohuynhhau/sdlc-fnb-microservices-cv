@@ -114,5 +114,18 @@ services:
       ordering: { condition: service_healthy }
       cashier: { condition: service_healthy }
 
+  # SPA qua nginx; nginx proxy /api, /healthz, /hubs sang gateway trong mạng compose.
+  web:
+    build: ./web
+    restart: unless-stopped
+    ports: ["127.0.0.1:5173:80"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      gateway: { condition: service_healthy }
+
 volumes:
   pgdata:
