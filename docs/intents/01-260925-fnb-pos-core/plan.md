@@ -2,7 +2,7 @@
 id: 01-260925-fnb-pos-core
 intent: ./intent.md
 spec: ./spec.md
-status: building
+status: verified
 branch: feat/01-260925-fnb-pos-core-slice-b
 generated_by: /sdlc:plan
 created: 2026-09-25
