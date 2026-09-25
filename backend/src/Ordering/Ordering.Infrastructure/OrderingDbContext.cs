@@ -21,7 +21,7 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             e.ToTable("menu_items");
             e.Ignore(x => x.Events);
             e.Property(x => x.Name).HasMaxLength(100);
-            e.Property(x => x.Price).HasPrecision(14, 2);
+            e.Property(x => x.Price).HasPrecision(18, 2);
             e.HasIndex(x => x.IsActive);
         });
 
@@ -34,7 +34,7 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             e.HasIndex(x => x.ShiftId);
             e.HasIndex(x => x.Status);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
-            e.Property(x => x.Total).HasPrecision(14, 2);
+            e.Property(x => x.Total).HasPrecision(18, 2);
             e.Property(x => x.Version).IsRowVersion();
             e.HasMany(x => x.Items).WithOne().HasForeignKey("OrderId").OnDelete(DeleteBehavior.Cascade);
         });
@@ -47,7 +47,7 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             // (khoá đã có giá trị) và UPDATE thay vì INSERT.
             e.Property(x => x.Id).ValueGeneratedNever();
             e.Property(x => x.Name).HasMaxLength(100);
-            e.Property(x => x.UnitPrice).HasPrecision(14, 2);
+            e.Property(x => x.UnitPrice).HasPrecision(18, 2);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
         });
 

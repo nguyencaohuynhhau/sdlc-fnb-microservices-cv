@@ -48,6 +48,31 @@ public sealed class SeederTests(PostgresFixture fx) : IClassFixture<PostgresFixt
         (await ordering.MenuItems.SingleAsync(m => m.Name == "Bánh flan")).IsAvailable.Should().BeFalse();
     }
 
+    /// <summary>Tiền là decimal(18,2) ở DB (spec §3) — soi schema sau migrate, bắt cả cấu hình EF lẫn migration thiếu.</summary>
+    [Theory]
+    [InlineData("fnb_ordering", 3)]
+    [InlineData("fnb_cashier", 4)]
+    public async Task MoneyColumns_AreNumeric18_2(string db, int moneyColumns)
+    {
+        await DemoData.SeedAsync(Conn, "demo-password", DateTimeOffset.UtcNow);
+
+        await using var conn = new NpgsqlConnection(Conn(db));
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT table_name || '.' || column_name || ' ' || numeric_precision || ',' || numeric_scale FROM information_schema.columns WHERE table_schema = 'public' AND data_type = 'numeric'",
+            conn);
+        var columns = new List<string>();
+        await using (var reader = await cmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                columns.Add(reader.GetString(0));
+            }
+        }
+
+        columns.Should().HaveCount(moneyColumns).And.OnlyContain(c => c.EndsWith(" 18,2"));
+    }
+
     [Theory]
     [InlineData("Development", true)]
     [InlineData("Production", false)]

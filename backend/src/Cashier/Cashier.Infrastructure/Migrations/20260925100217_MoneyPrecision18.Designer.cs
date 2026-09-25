@@ -3,6 +3,7 @@ using System;
 using Cashier.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cashier.Infrastructure.Migrations
 {
     [DbContext(typeof(CashierDbContext))]
-    partial class CashierDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260925100217_MoneyPrecision18")]
+    partial class MoneyPrecision18
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
