@@ -151,6 +151,8 @@ web/
 
 **Cập nhật khi build (B8):** thêm `backend/tools/Seeder/{Seeder.csproj,DemoData.cs}`, `backend/tests/Seeder.IntegrationTests/SeederTests.cs`, dòng `ASPNETCORE_ENVIRONMENT` trong `.env.example`.
 
+**Cập nhật khi build (W):** không có `routes/_auth/shift.tsx`; `components/ui/` là `badge, button, card, input, label, sonner`; thêm `src/components/__tests__/OfflineBanner.test.tsx`, `e2e/helpers.ts`, `web/nginx.conf`; `playwright.config.ts` baseURL `http://localhost:5173`.
+
 **Cập nhật khi build (B6):** gộp file nhỏ cho ít file hơn, hành vi giữ nguyên.
 - `Ordering.Domain`: `Order.cs` chứa luôn `OrderItem`, hai enum trạng thái và `OrderCancelled`; còn `MenuItem.cs`.
 - `Ordering.Application`: năm handler gộp thành `OrderService.cs` (chung một khuôn tìm → so phiên bản → sửa → lưu → báo); `Abstractions.cs` (4 interface) + `Views.cs` (DTO trả ra).
@@ -211,19 +213,24 @@ backend), **W** (web), **I** (tích hợp). Xem mục 3 để biết nhóm nào 
 
 ### Nhóm W — Web (worktree riêng, xem mục 3)
 
-- [ ] **W1** Scaffold: Vite + React 19 + TS strict, `babel-plugin-react-compiler` qua `@vitejs/plugin-react`, `@tailwindcss/vite` + `index.css` (`@import "tailwindcss"`), `shadcn` init (style default, CSS variables), `@tanstack/router-plugin` (file-based, sinh `routeTree.gen.ts` — commit file này), eslint flat config, vitest, playwright. `npm run lint` = `eslint . -f json` khi được truyền `-f json` (lint-ratchet gọi `npm run lint -- -f json`).
+- [x] **W1** Scaffold: Vite + React 19 + TS strict, `babel-plugin-react-compiler` qua `@vitejs/plugin-react`, `@tailwindcss/vite` + `index.css` (`@import "tailwindcss"`), `shadcn` init (style default, CSS variables), `@tanstack/router-plugin` (file-based, sinh `routeTree.gen.ts` — commit file này), eslint flat config, vitest, playwright. `npm run lint` = `eslint . -f json` khi được truyền `-f json` (lint-ratchet gọi `npm run lint -- -f json`).
+  _Ghi chú khi build:_ chỉ tạo 6 component shadcn thật sự dùng (`badge, button, card, input, label, sonner`); `dialog/form/table` chưa cần nên chưa cài `radix-ui`, `lucide-react`, `@tanstack/react-table`. Thêm 4 devDependency ngoài danh sách (`@types/react`, `@types/react-dom`, `@types/node`, `@testing-library/dom`) — TS strict và `@testing-library/react` 16 bắt buộc; **chờ người điều phối duyệt** (xem §4).
   → kiểm chứng: `npm run build` xanh; `node scripts/sdlc/lint-ratchet.mjs web` in "không có lỗi lint mới"; `ls web/tailwind.config.*` không có gì.
-- [ ] **W2** `lib/`: `apiClient.ts` (base `/api`, đính Bearer, khi 401 gọi `/api/auth/refresh` **một lần** rồi retry, hai request 401 cùng lúc chỉ refresh một lần, `ProblemDetails.detail` → thông báo cho UI), `queryClient.ts` (`staleTime: 30_000`, `retry: 1`), `queryKeys.ts` (factory duy nhất: `menu`, `orders.list(shiftId)`, `orders.detail(id)`, `shift.current`), `auth.ts` (token trong memory + refresh trong `localStorage`, `beforeLoad` guard ở `_auth.tsx`), `online.ts` (`onlineManager` + ping `/healthz` 10s), `signalr.ts` (kết nối `/hubs/orders?access_token=`, auto-reconnect, hàm `onOrderEvent` invalidate query key tương ứng).
+- [x] **W2** `lib/`: `apiClient.ts` (base `/api`, đính Bearer, khi 401 gọi `/api/auth/refresh` **một lần** rồi retry, hai request 401 cùng lúc chỉ refresh một lần, `ProblemDetails.detail` → thông báo cho UI), `queryClient.ts` (`staleTime: 30_000`, `retry: 1`), `queryKeys.ts` (factory duy nhất: `menu`, `orders.list(shiftId)`, `orders.detail(id)`, `shift.current`), `auth.ts` (token trong memory + refresh trong `localStorage`, `beforeLoad` guard ở `_auth.tsx`), `online.ts` (`onlineManager` + ping `/healthz` 10s), `signalr.ts` (kết nối `/hubs/orders?access_token=`, auto-reconnect, hàm `onOrderEvent` invalidate query key tương ứng).
+  _Ghi chú khi build:_ test ở `src/lib/__tests__/{apiClient,online}.test.ts`; `apiClient` có thêm ca 204 → `null`.
   → kiểm chứng: `vitest run src/lib` xanh: `apiClient_401_refreshesOnceThenRetries`, `apiClient_ParallelRefresh_SingleFlight`, `online_HealthzFails_MarksOffline`.
-- [ ] **W3** `/login`: TanStack Form + Zod (`username` 3–50, `password` ≥ 8), hiện `detail` của 401/423, sau login về `/pos` (Cashier/Owner) hoặc `/kitchen` (Kitchen).
+- [x] **W3** `/login`: TanStack Form + Zod (`username` 3–50, `password` ≥ 8), hiện `detail` của 401/423, sau login về `/pos` (Cashier/Owner) hoặc `/kitchen` (Kitchen).
   → kiểm chứng: `e2e/login.spec.ts` sai mật khẩu → thấy đúng câu "Tên đăng nhập hoặc mật khẩu không đúng."
-- [ ] **W4** `/pos`: `ShiftBar` (ca hiện tại / nút mở ca / đóng ca), `MenuGrid` (badge "Hết" khi `!isAvailable`, disabled), `OrderPanel` (đơn đang mở: thêm/bớt/huỷ món với `If-Match`, 409 → toast đúng câu trong spec và refetch; nút "Gửi bếp" = tạo đơn), trạng thái rỗng "Thực đơn trống — chạy seed" khi menu rỗng, disabled toàn bộ mutation khi offline.
+- [x] **W4** `/pos`: `ShiftBar` (ca hiện tại / nút mở ca / đóng ca), `MenuGrid` (badge "Hết" khi `!isAvailable`, disabled), `OrderPanel` (đơn đang mở: thêm/bớt/huỷ món với `If-Match`, 409 → toast đúng câu trong spec và refetch; nút "Gửi bếp" = tạo đơn), trạng thái rỗng "Thực đơn trống — chạy seed" khi menu rỗng, disabled toàn bộ mutation khi offline.
+  _Ghi chú khi build:_ không có route `_auth/shift.tsx` — quản lý ca nằm trọn trong `ShiftBar` trên `/pos`, thu ngân không phải đổi màn hình.
   → kiểm chứng: vitest `orderSchemas.test.ts`; ảnh `a-pos-empty-menu.png`, `a-pos-order.png`, `a-conflict-409.png`, `a-no-open-shift.png`.
-- [ ] **W5** `/kitchen`: `KitchenBoard` cột `Pending / Preparing / Done`, nhận sự kiện SignalR, nút chuyển trạng thái theo thứ tự, trạng thái "Chưa có đơn nào", chỉ role `Kitchen`/`Owner`.
+- [x] **W5** `/kitchen`: `KitchenBoard` cột `Pending / Preparing / Done`, nhận sự kiện SignalR, nút chuyển trạng thái theo thứ tự, trạng thái "Chưa có đơn nào", chỉ role `Kitchen`/`Owner`.
   → kiểm chứng: ảnh `a-kitchen-board.png`; e2e ở I1.
-- [ ] **W6** `OfflineBanner` gắn ở `__root.tsx`: đỏ, cố định trên cùng, "Mất kết nối tới hệ thống"; khi online lại tự ẩn và `queryClient.invalidateQueries()`.
+- [x] **W6** `OfflineBanner` gắn ở `__root.tsx`: đỏ, cố định trên cùng, "Mất kết nối tới hệ thống"; khi online lại tự ẩn và `queryClient.invalidateQueries()`.
+  _Ghi chú khi build:_ thêm `components/__tests__/OfflineBanner.test.tsx` và `e2e/helpers.ts` (login/mở ca dùng chung cho 3 spec).
   → kiểm chứng: `e2e/offline-banner.spec.ts` (Playwright `context.setOffline(true)` + chặn `/healthz`) — banner hiện, nút "Gửi bếp" disabled; bật lại → banner ẩn **không reload**.
-- [ ] **W7** `web/Dockerfile` (build → nginx serve `dist/`, proxy `/api` và `/hubs` sang `gateway:8080`) + service `web` trong compose publish `5173:80`.
+- [x] **W7** `web/Dockerfile` (build → nginx serve `dist/`, proxy `/api` và `/hubs` sang `gateway:8080`) + service `web` trong compose publish `5173:80`.
+  _Ghi chú khi build:_ nginx proxy thêm `= /healthz` (cho `online.ts`) và tắt `access_log` ở `/hubs/` để token trong query không vào log; service `web` bind `127.0.0.1:5173` như gateway. Playwright `baseURL` là `http://localhost:5173` (nginx → gateway 8080), vẫn không gọi thẳng 8082. Service compose được thêm lúc tích hợp: cổng e2e của commit hook cần cả stack chạy nên nhánh web được fast-forward lên nhánh lát A trước khi commit.
   → kiểm chứng: `docker compose up -d --build web` → `curl localhost:5173` 200; login qua trình duyệt hoạt động.
 
 ### Nhóm I — Tích hợp (sau khi B và W gộp vào nhánh lát)
@@ -288,6 +295,8 @@ ràng buộc chặn merge cho lát này:
 | backend (test) | `xunit`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`, `FluentAssertions`, `Testcontainers.PostgreSql`, `Testcontainers.Kafka`, `Testcontainers.Redis`, `Microsoft.AspNetCore.Mvc.Testing` | test trên hạ tầng thật |
 | web | `react`, `react-dom`, `@tanstack/react-router`, `@tanstack/router-plugin`, `@tanstack/react-query`, `@tanstack/react-form`, `@tanstack/react-table`, `zod`, `zustand`, `@microsoft/signalr`, `tailwindcss`, `@tailwindcss/vite`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `sonner`, `radix-ui` (theo shadcn init) | stack chỉ định |
 | web (dev) | `vite`, `@vitejs/plugin-react`, `babel-plugin-react-compiler`, `typescript`, `eslint` + `typescript-eslint` + `eslint-plugin-react-hooks`, `vitest`, `@testing-library/react`, `jsdom`, `@playwright/test`, `shadcn` (CLI, chạy qua npx) | build/lint/test |
+
+**Chờ duyệt (phát sinh khi build W1):** web (dev) `@types/react`, `@types/react-dom`, `@types/node` (kiểu cho TS strict), `@testing-library/dom` (peer dependency bắt buộc của `@testing-library/react` 16). Chỉ là kiểu/đồ test, không vào bundle.
 
 `Grpc.*` và `@tanstack/react-table` **chưa** cần ở lát A — table để W1 cài sẵn vì shadcn `table`
 component cần; gRPC để lát B. Không cài `MediatR`, `AutoMapper`, `FluentValidation`, `MassTransit`, `Serilog`.
