@@ -4,7 +4,6 @@
     "các script trong scripts/sdlc/ và docs/evals/run.mjs đọc file này và không hardcode gì.",
     "Sửa file này khi áp dụng bộ khung vào một dự án mới. Xem README.md."
   ],
-
   "_comment_workspaces": [
     "Mỗi khoá = một thư mục con ở gốc repo có package.json riêng.",
     "gates = các cổng chất lượng chạy TUẦN TỰ với cwd đặt tại thư mục workspace.",
@@ -14,22 +13,22 @@
   "workspaces": {
     "backend": {
       "gates": {
-        "lint": "node ../scripts/sdlc/lint-ratchet.mjs backend",
+        "format": "npm run format",
         "build": "npm run build",
         "test": "npm test"
       },
-      "e2eGate": "npm run test:e2e",
-      "lintReportCommand": "npm run lint:check -- -f json"
+      "e2eGate": "npm run test:e2e"
     },
     "web": {
       "gates": {
         "lint": "node ../scripts/sdlc/lint-ratchet.mjs web",
-        "build": "npm run build"
+        "build": "npm run build",
+        "test": "npm test"
       },
+      "e2eGate": "npm run test:e2e",
       "lintReportCommand": "npm run lint -- -f json"
     }
   },
-
   "_comment_e2eGate": [
     "Lệnh e2e chỉ chạy khi thay đổi chạm e2eTriggers, hoặc khi ép bằng `--e2e`.",
     "Tách khỏi gates vì e2e thường cần dịch vụ ngoài (DB, queue) nên không chạy mặc định.",
@@ -41,25 +40,60 @@
     "working tree là cách nhanh nhất để một lần verify 'xanh' trở nên vô nghĩa.",
     "Workspace không lint thì bỏ khoá này (và bỏ cả gate lint)."
   ],
-
   "_comment_e2eTriggers": [
     "Prefix đường dẫn mà khi chạm vào thì BẮT BUỘC chạy e2e. Chọn những vùng mà",
     "một lỗi im lặng sẽ làm hỏng dữ liệu hoặc thủng xác thực: tiền, tồn kho, auth, schema."
   ],
   "e2eTriggers": [
-    "backend/src/auth",
-    "backend/src/schemas"
+    "backend/src/Identity",
+    "backend/src/Ordering/Ordering.Domain",
+    "backend/src/Cashier/Cashier.Domain",
+    "backend/src/Shared/Shared.Messaging",
+    "web/src/lib/apiClient.ts"
   ],
-
   "_comment_requiredTests": [
     "Các file test hồi quy KHÔNG ĐƯỢC biến mất (eval E05). Agent bị dồn ép hay 'dọn dẹp'",
     "đúng cái test đang chặn nó. Liệt kê ở đây những test mua bằng một sự cố thật."
   ],
   "requiredTests": [],
-
   "_comment_codeExtensions": "Đuôi file được coi là mã nguồn — quyết định cái gì kích hoạt cổng chặn commit.",
-  "codeExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json", ".css", ".scss", ".html", ".vue", ".svelte", ".py", ".go", ".rs"],
-
+  "codeExtensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".json",
+    ".css",
+    ".scss",
+    ".html",
+    ".vue",
+    ".svelte",
+    ".py",
+    ".go",
+    ".rs",
+    ".cs",
+    ".csproj",
+    ".sln",
+    ".props",
+    ".proto",
+    ".yml",
+    ".yaml"
+  ],
   "_comment_ignoredPrefixes": "Thư mục không bao giờ tính là mã nguồn (tài liệu, build output, hiện vật).",
-  "ignoredPrefixes": ["node_modules/", "docs/", ".brain/", ".claude/", ".agents/", "dist/", "build/", ".next/", "coverage/", ".git/", "target/", "__pycache__/"]
+  "ignoredPrefixes": [
+    "node_modules/",
+    "docs/",
+    ".brain/",
+    ".claude/",
+    ".agents/",
+    "dist/",
+    "build/",
+    ".next/",
+    "coverage/",
+    ".git/",
+    "target/",
+    "__pycache__/"
+  ]
 }
