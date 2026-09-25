@@ -151,6 +151,8 @@ web/
 
 **Cập nhật khi build (B8):** thêm `backend/tools/Seeder/{Seeder.csproj,DemoData.cs}`, `backend/tests/Seeder.IntegrationTests/SeederTests.cs`, dòng `ASPNETCORE_ENVIRONMENT` trong `.env.example`.
 
+**Cập nhật khi build (I3):** thêm `backend/src/{Ordering,Cashier}/*.Infrastructure/Migrations/*_MoneyPrecision18*.cs` (tiền về `numeric(18,2)` như §4).
+
 **Cập nhật khi build (W):** không có `routes/_auth/shift.tsx`; `components/ui/` là `badge, button, card, input, label, sonner`; thêm `src/components/__tests__/OfflineBanner.test.tsx`, `e2e/helpers.ts`, `web/nginx.conf`; `playwright.config.ts` baseURL `http://localhost:5173`.
 
 **Cập nhật khi build (B6):** gộp file nhỏ cho ít file hơn, hành vi giữ nguyên.
@@ -235,14 +237,18 @@ backend), **W** (web), **I** (tích hợp). Xem mục 3 để biết nhóm nào 
 
 ### Nhóm I — Tích hợp (sau khi B và W gộp vào nhánh lát)
 
-- [ ] **I1** Gộp nhánh web vào `feat/01-260925-fnb-pos-core-slice-a`; `docker compose down -v && docker compose up -d --build && npm --prefix backend run seed`; chạy `e2e/order-to-kitchen.spec.ts`: hai `BrowserContext` (cashier + kitchen), cashier mở ca (nếu chưa) → thêm 3 món → "Gửi bếp"; kitchen `expect(card).toBeVisible({ timeout: 2000 })` và ghi `performance.now()` chênh lệch vào log; kitchen bấm "Xong" → POS thấy trạng thái trong 2000ms.
+- [x] **I1** Gộp nhánh web vào `feat/01-260925-fnb-pos-core-slice-a`; `docker compose down -v && docker compose up -d --build && npm --prefix backend run seed`; chạy `e2e/order-to-kitchen.spec.ts`: hai `BrowserContext` (cashier + kitchen), cashier mở ca (nếu chưa) → thêm 3 món → "Gửi bếp"; kitchen `expect(card).toBeVisible({ timeout: 2000 })` và ghi `performance.now()` chênh lệch vào log; kitchen bấm "Xong" → POS thấy trạng thái trong 2000ms.
+  _Ghi chú khi build:_ nhánh web đã gộp từ trước (`9818fd1`). Stack dựng lại 3 lần từ `down -v` (8 container healthy, ~26s sau khi có image); `a-latency.log` có một dòng mỗi lần chạy, mọi lần < 2000ms (534–1253ms tới bếp, 132–169ms về POS; lần 1253ms chạy trong verify, cùng lúc Testcontainers). `git status` không có `bin/obj/dist/node_modules`.
   → kiểm chứng: `npm --prefix web run test:e2e` xanh; log mốc thời gian lưu vào `docs/evidence/01-260925-fnb-pos-core/a-latency.log`.
-- [ ] **I2** Chụp 8 ảnh ở mục 0 bằng Playwright (`page.screenshot`) vào `docs/evidence/01-260925-fnb-pos-core/`.
+- [x] **I2** Chụp 8 ảnh ở mục 0 bằng Playwright (`page.screenshot`) vào `docs/evidence/01-260925-fnb-pos-core/`.
+  _Ghi chú khi build:_ chụp bằng script Playwright dùng một lần (không commit), `animations: 'disabled'` để không dính giữa transition. `a-pos-empty-menu` chặn `/api/menu` trả `[]` vì DB demo đã seed; `a-conflict-409` là 409 thật — một context chặn `/hubs/**` nên giữ phiên bản đơn cũ trong khi context kia huỷ món trước; `a-no-open-shift` đóng ca thật rồi mở lại.
   → kiểm chứng: `ls docs/evidence/01-260925-fnb-pos-core/*.png | wc -l` ≥ 8.
-- [ ] **I3** Tài liệu: `STRUCTURE.md`, `schema.md`, `endpoints.md`, `DESIGN_SYSTEM.md`, `README.md` (sơ đồ + bảng đối chiếu JD: điền dòng cho Microservices, API Gateway, Kafka, Redis, JWT, EF Core/PostgreSQL, Docker, SignalR, Clean Architecture, React/TanStack; đánh dấu "lát B/C/D" cho CQRS read model, gRPC, idempotency, saga), `CHANGELOG.md`.
+- [x] **I3** Tài liệu: `STRUCTURE.md`, `schema.md`, `endpoints.md`, `DESIGN_SYSTEM.md`, `README.md` (sơ đồ + bảng đối chiếu JD: điền dòng cho Microservices, API Gateway, Kafka, Redis, JWT, EF Core/PostgreSQL, Docker, SignalR, Clean Architecture, React/TanStack; đánh dấu "lát B/C/D" cho CQRS read model, gRPC, idempotency, saga), `CHANGELOG.md`.
   → kiểm chứng: `grep -c '| ' README.md` > 15; mỗi đường dẫn nhắc trong README tồn tại (`grep -oE 'backend/[A-Za-z0-9_./-]+' README.md | xargs -I{} test -e {}`).
-- [ ] **I4** `npm run sdlc:verify -- --all --e2e` → lưu output vào `docs/evidence/01-260925-fnb-pos-core/verify-slice-a.log`; kiểm tra bằng chứng "không có build output lọt vào cổng" ở mục 0.
+  _Ghi chú khi build:_ Viết tài liệu thì phát hiện cột tiền đang `numeric(14,2)`, lệch §4 (`decimal(18,2)`) mà không ai ghi lại → sửa `HasPrecision(18, 2)` + migration `MoneyPrecision18` (chỉ nới cột) cho ordering và cashier, thêm test `MoneyColumns_AreNumeric18_2` (bỏ migration ordering → đỏ). `endpoints.md`: `/healthz` trả JSON từng dịch vụ, không phải `"ok"`. README giữ link sang `docs/AI-NATIVE-SDLC.md` cho phần bộ khung.
+- [x] **I4** `npm run sdlc:verify -- --all --e2e` → lưu output vào `docs/evidence/01-260925-fnb-pos-core/verify-slice-a.log`; kiểm tra bằng chứng "không có build output lọt vào cổng" ở mục 0.
   → kiểm chứng: log kết thúc bằng "✅ Toàn bộ cổng XANH."
+  _Ghi chú khi build:_ 81/81 xanh (backend 67, vitest 11, Playwright 3). Log đã soát: không chứa mật khẩu, khoá JWT hay token.
 
 ## 3. Thứ tự & song song hoá
 

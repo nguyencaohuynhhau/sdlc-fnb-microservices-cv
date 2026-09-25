@@ -3,7 +3,7 @@
 Nguồn gốc: `docs/intents/01-260925-fnb-pos-core/spec.md` §4. File này cụ thể hoá phần lát A
 tới mức hình dạng JSON, để backend và web xây song song mà không lệch nhau.
 
-**Mọi request đi qua gateway `http://localhost:8080`.** JSON camelCase. Tiền là số VND
+**Mọi request đi qua gateway `http://localhost:8080`** (web ở `http://localhost:5173` gọi cùng origin, nginx proxy `/api`, `/healthz`, `/hubs` sang gateway). Ba dịch vụ không publish cổng ra host. JSON camelCase. Tiền là số VND
 (`decimal`, không phần lẻ trong dữ liệu demo). Thời gian là chuỗi ISO-8601 UTC.
 
 ## Quy ước chung
@@ -90,4 +90,4 @@ Lát A: `countedCash`/`expectedCash`/`variance` luôn `null`; lát B thêm body 
 
 | Method | Path | Vai trò | 2xx | Lỗi |
 |--------|------|---------|-----|-----|
-| GET | `/healthz` | public | `200 "ok"` khi gateway **và** identity, ordering, cashier đều sống | `503` |
+| GET | `/healthz` | public | `200 { identity, ordering, cashier: "ok" }` — gateway gọi `/healthz` của từng dịch vụ (timeout 2s) | `503` cùng hình dạng, dịch vụ chết mang giá trị `"down"` |
