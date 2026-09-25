@@ -1,18 +1,11 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test, type Page } from '@playwright/test'
-import { availableMenuItems, ensureShiftOpen, loginAs } from './helpers'
+import { expect, test } from '@playwright/test'
+import { availableMenuItems, ensureShiftOpen, hubJoined, loginAs } from './helpers'
 
 const LATENCY_LOG = fileURLToPath(new URL('../../docs/evidence/01-260925-fnb-pos-core/a-latency.log', import.meta.url))
 const BUDGET_MS = 2000
-
-/** Chờ tới khi trang đã vào group SignalR của ca (JoinShift trả kết quả qua WebSocket). */
-function hubJoined(page: Page) {
-  return page
-    .waitForEvent('websocket', (ws) => ws.url().includes('/hubs/orders'))
-    .then((ws) => ws.waitForEvent('framereceived', (f) => String(f.payload).includes('"type":3')))
-}
 
 test('POS "Gửi bếp" → bếp thấy đơn < 2s; bếp "Xong" → POS thấy < 2s', async ({ browser }) => {
   const pos = await (await browser.newContext()).newPage()

@@ -37,9 +37,9 @@ set -a && . ./.env && set +a && npm run sdlc:verify -- --all --e2e   # + Testcon
                            │
          ┌─────────────────┼──────────────────┐
          ▼                 ▼                  ▼
-     identity          ordering            cashier
-  login, refresh    thực đơn, đơn,       mở / đóng ca
-                    hub SignalR
+     identity          ordering ◄─ gRPC ─ cashier
+  login, refresh    thực đơn, đơn,       mở / đóng ca,
+                    hub SignalR          thu tiền (MarkPaid)
          │                 │   ▲              │
          │                 │   └──── Kafka ───┘   shift-opened / shift-closed (outbox → inbox)
          ▼                 ▼                  ▼
@@ -50,6 +50,8 @@ set -a && . ./.env && set +a && npm run sdlc:verify -- --all --e2e   # + Testcon
 
 - **Mỗi dịch vụ một database.** Không dịch vụ nào đọc database của dịch vụ khác; ordering biết ca đang mở
   **qua sự kiện** của cashier, giữ bản chiếu trong bảng `known_shifts`.
+- **Tiền đi một đường đồng bộ duy nhất.** Thu tiền giữ key idempotency và khoá ca trong một transaction của cashier,
+  gọi ordering qua gRPC (`MarkPaid`, kiểm lại tổng tiền) rồi mới ghi bút toán — mất phản hồi thì bấm lại cùng key.
 - **Chỉ gateway và web mở cổng** (bind `127.0.0.1`). Ba dịch vụ vẫn tự kiểm JWT — gateway không phải lớp bảo vệ duy nhất.
 - Chi tiết: [cấu trúc thư mục](docs/architecture/STRUCTURE.md) · [API](docs/api/endpoints.md) ·
   [schema](docs/database/schema.md) · [design system](docs/design/DESIGN_SYSTEM.md).
@@ -64,15 +66,15 @@ set -a && . ./.env && set +a && npm run sdlc:verify -- --all --e2e   # + Testcon
 | Redis | Cache thực đơn `menu:v1`, đếm đăng nhập sai → khoá 15 phút | `backend/tests/Identity.IntegrationTests/AuthTests.cs` (`Login_TenFailures_Returns423`) |
 | JWT / OAuth2 | HS256, access 60 phút, refresh token xoay vòng, dùng lại → thu hồi cả chuỗi | `AuthTests.cs` (`Refresh_ReusedToken_RevokesFamily`) |
 | EF Core, PostgreSQL | Migration, `xmin` làm concurrency token, unique partial index `NULLS NOT DISTINCT`, tiền `numeric(18,2)` | `backend/tests/Ordering.IntegrationTests/ConcurrencyTests.cs`, `backend/tests/Cashier.IntegrationTests/ShiftTests.cs` |
-| SQL: index, transaction | Index theo truy vấn thật, ràng buộc "một ca mở" ở DB chứ không ở code | `ShiftTests.cs` (`OpenShift_Concurrent_OnlyOneSucceeds`: 10 request song song → đúng 1 thành công) |
+| SQL: index, transaction | Index theo truy vấn thật, ràng buộc "một ca mở" ở DB chứ không ở code | `ShiftTests.cs` (`OpenShift_Concurrent_OnlyOneSucceeds`: 10 request song song → đúng 1 thành công; `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose`: `FOR SHARE`/`FOR UPDATE` — đóng ca chờ payment đang chạy) |
 | Clean Architecture, SOLID, DI | `Api → Application → Domain`, `Infrastructure` cắm vào qua interface (`backend/src/Ordering/`) | `backend/tests/Ordering.UnitTests/` chạy domain không cần I/O |
 | REST API, middleware | ProblemDetails tiếng Việt, `[Authorize]` mặc định, ETag/If-Match (`backend/src/Shared/Shared.Web/`) | 409 thật khi hai người sửa cùng đơn — `a-conflict-409.png` |
 | Realtime (SignalR) | Hub `/hubs/orders`, group theo ca, token qua query chỉ ở `/hubs` | `web/e2e/order-to-kitchen.spec.ts`: POS → bếp < 2000ms (`a-latency.log`) |
 | Docker, CI/CD | Một `backend/Dockerfile` cho mọi dịch vụ, healthcheck, `.github/workflows/ci.yml` | `docker compose up --wait` từ số 0 |
 | ReactJS, TypeScript | React 19, TanStack Router/Query/Form, Zod, Zustand, shadcn/ui (`web/src/`) | `web/e2e/offline-banner.spec.ts`: mất mạng → khoá nút ghi, có mạng → tự hồi phục |
 | Kiểm thử trên hạ tầng thật | Testcontainers Postgres/Kafka/Redis, Playwright trên stack compose | `npm run sdlc:verify -- --all --e2e` |
-| Idempotency (giao dịch tiền) | _lát B_ — `POST /api/payments` với `Idempotency-Key` | — |
-| gRPC | _lát B_ — `Ordering.MarkPaid` nội bộ | — |
+| Idempotency (giao dịch tiền) | `POST /api/payments` + `Idempotency-Key`: `INSERT … ON CONFLICT DO NOTHING` giữ key trong transaction, gửi lại trả nguyên văn phản hồi (`backend/src/Cashier/Cashier.Application/PayOrderHandler.cs`) | `backend/tests/Cashier.IntegrationTests/PaymentIdempotencyTests.cs` (`Payments_ConcurrentSameKey_CreatesOneLedgerEntry`: 5 request song song cùng key → 1 bút toán) · 409 thật khi tổng đổi — `b-total-mismatch-409.png` |
+| gRPC | `OrderPayments.MarkPaid` cashier → ordering, HTTP/2 nội bộ, tiền là chuỗi thập phân (`backend/src/Shared/Protos/order_payments.proto`) | `backend/tests/Ordering.IntegrationTests/MarkPaidTests.cs` (gọi gRPC thật; `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds`) · `web/e2e/order-to-payment.spec.ts`: "Xác nhận thu" → biên nhận < 2000ms (`b-latency.log`) |
 | Saga / nhất quán cuối cùng giữa dịch vụ | _lát C_ — trừ kho theo `OrderPaid`, cờ hết hàng về POS | — |
 | CQRS read model | _lát D_ — `reporting` dựng từ sự kiện, báo cáo phân trang | — |
 | OpenAPI / Swagger | chưa làm | — |

@@ -43,9 +43,9 @@ Cộng thêm bằng chứng cụ thể của lát này:
 - [x] Cùng file: `Payments_SameKeyDifferentBody_Returns422`, `Payments_MissingKey_Returns400`, `Payments_TotalMismatch_Returns409` (detail có tổng thật, không có dòng `payments`), `Payments_NoOpenShift_Returns409`, `Payments_LostReply_RetrySameKeyCompletes`, `Payments_OrderingUnavailable_Returns503_NoLedgerEntry`, `Payments_TwoKeysSameOrder_OnlyOneCompleted`
 - [x] `backend/tests/Cashier.IntegrationTests/ShiftTests.cs` — `CloseShift_ReconcilesCash` (quỹ đầu 0 + 2 tiền mặt + 1 chuyển khoản, đếm lệch 5.000 → `expectedCash`, `variance = -5000`, `orderCount`, `revenue`, `cashTotal`, `transferTotal` đúng) và `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose` (payment đang giữ ca + đóng ca chen vào → đóng ca **chờ** và tính cả payment đó). Đỏ khi bỏ `FOR SHARE`/`FOR UPDATE` (tiêu chí **#8**)
 - [x] `backend/tests/Ordering.IntegrationTests/MarkPaidTests.cs` — gọi gRPC thật qua TestServer: `MarkPaid_TotalMismatch_ReturnsActualTotal`, `MarkPaid_SamePaymentIdTwice_IsIdempotent`, `MarkPaid_OtherPaymentId_AlreadyPaid`, `MarkPaid_WritesOrderPaidToOutbox`, `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds`, `MarkPaid_ConcurrentDifferentPayments_OnlyOneWins`, `MarkPaid_WithoutToken_Unauthenticated`, `MarkPaid_TotalWithDifferentScale_Matches`, `Kitchen_PaidOrderWithPendingItems_StillVisible`
-- [ ] `web/e2e/order-to-payment.spec.ts` — (a) luồng đầy đủ spec §7: đăng nhập → mở ca → 3 món → bếp thấy ≤ 2s → "Xong" → thu tiền mặt → đóng ca, nhập tiền đếm, thấy tổng kết; (b) biến thể **20 phần / ≥ 10 dòng**: từ bấm "Xác nhận thu" tới biên nhận hiện **< 2000ms**, ghi vào `docs/evidence/01-260925-fnb-pos-core/b-latency.log` (tiêu chí **#4**). Chạy **qua gateway 8080** (nginx 5173 → gateway)
-- [ ] Ảnh trong `docs/evidence/01-260925-fnb-pos-core/`: `b-payment-form.png`, `b-payment-receipt.png`, `b-total-mismatch-409.png` (409 **thật**: tab thứ hai thêm món trong lúc tab một đang mở form thu), `b-close-shift-summary.png`, `b-close-shift-open-orders-warning.png`, `b-payment-offline.png`
-- [ ] Các test trong `requiredTests` (4 cũ + 2 mới) tồn tại và xanh; `ConcurrencyTests`, `OutboxTests`, `AuthTests` của lát A **không** đổi kỳ vọng
+- [x] `web/e2e/order-to-payment.spec.ts` — (a) luồng đầy đủ spec §7: đăng nhập → mở ca → 3 món → bếp thấy ≤ 2s → "Xong" → thu tiền mặt → đóng ca, nhập tiền đếm, thấy tổng kết; (b) biến thể **20 phần / ≥ 10 dòng**: từ bấm "Xác nhận thu" tới biên nhận hiện **< 2000ms**, ghi vào `docs/evidence/01-260925-fnb-pos-core/b-latency.log` (tiêu chí **#4**). Chạy **qua gateway 8080** (nginx 5173 → gateway)
+- [x] Ảnh trong `docs/evidence/01-260925-fnb-pos-core/`: `b-payment-form.png`, `b-payment-receipt.png`, `b-total-mismatch-409.png` (409 **thật**: tab thứ hai thêm món trong lúc tab một đang mở form thu), `b-close-shift-summary.png`, `b-close-shift-open-orders-warning.png`, `b-payment-offline.png`
+- [x] Các test trong `requiredTests` (4 cũ + 2 mới) tồn tại và xanh; `ConcurrencyTests`, `OutboxTests`, `AuthTests` của lát A **không** đổi kỳ vọng
 
 ## 1. Các file sẽ chạm
 
@@ -130,11 +130,15 @@ Cộng thêm bằng chứng cụ thể của lát này:
 | `src/features/payment/PaymentForm.tsx` | tạo | chọn "Tiền mặt"/"Chuyển khoản", "Xác nhận thu {tổng}", disabled khi offline |
 | `src/features/payment/Receipt.tsx` | tạo | biên nhận: mã đơn, món, tổng, phương thức, giờ |
 | `src/features/payment/__tests__/paymentSchemas.test.ts` | tạo | parse phản hồi thật mẫu, từ chối số tiền là chuỗi |
+| `src/features/payment/__tests__/PaymentForm.test.tsx` | tạo | _(thêm khi build)_ bấm lại sau 503 gửi **cùng** khoá, đóng/mở form sinh khoá mới — khoá sống ở form (`useState`), không ở `usePayOrder` |
+| `src/features/orders/__tests__/orderSchemas.test.ts` | sửa | _(thêm khi build)_ fixture thêm `paidAt: null` — API lát B trả trường này ở mọi đơn |
 | `src/features/shift/useShift.ts` | sửa | `useCloseShift` gửi `{ countedCash }`, parse `ShiftSummary` |
 | `src/features/shift/CloseShiftForm.tsx` | tạo | đếm mù: nhập tiền đếm → xác nhận → hiện số đơn, doanh thu, dự kiến, đếm được, lệch; cảnh báo (không chặn) khi còn đơn Open |
 | `src/features/shift/ShiftBar.tsx` | sửa | "Đóng ca" mở `CloseShiftForm` thay vì đóng ngay |
 | `e2e/order-to-payment.spec.ts` | tạo | xem mục 0 |
-| `e2e/helpers.ts` | sửa | `ensureShiftOpen` đi qua form đóng/mở ca mới nếu cần |
+| `e2e/helpers.ts` | sửa | _(khác plan)_ `ensureShiftOpen` không cần đổi (luồng mở ca giữ nguyên); chỉ thêm `hubJoined` dùng chung |
+| `e2e/order-to-kitchen.spec.ts` | sửa | _(thêm khi build)_ import `hubJoined` từ `helpers.ts` thay cho bản sao cục bộ |
+| `playwright.config.ts` | sửa | _(thêm khi build)_ `workers: 1` — mọi spec dùng chung một ca đang mở trên stack thật, `order-to-payment` đóng ca giữa chừng → chạy song song làm spec khác đỏ ngẫu nhiên |
 
 **Không** chạm tới file nào ngoài danh sách này mà không cập nhật plan trước.
 
@@ -175,16 +179,16 @@ Cộng thêm bằng chứng cụ thể của lát này:
 
 ### Nhóm W — Web (worktree riêng, xem mục 3)
 
-- [ ] **W1** `apiClient`: `idempotencyKey?: string` → header `Idempotency-Key`; retry sau refresh 401 dùng **cùng** key. → kiểm chứng: `apiClient.test.ts` ca mới xanh, đỏ khi retry không kèm header.
-- [ ] **W2** Thu tiền: `usePayOrder` (key tạo lúc mở form, giữ tới khi thành công hoặc đóng form; `onSuccess` invalidate `orders`), `PaymentForm` inline trong thẻ đơn, `Receipt` giữ ở `OrderPanel` từ `pay.data` (đơn biến khỏi danh sách vẫn thấy biên nhận, tới khi bấm "Đơn mới"), 409 → toast đúng `detail` + refetch đơn, offline → nút disabled. POS lấy `?active=true`. → kiểm chứng: `npm --prefix web run build` + vitest xanh; `paymentSchemas.test.ts`.
-- [ ] **W3** `CloseShiftForm` + `useCloseShift` gửi body, parse Zod; cảnh báo "Còn {n} đơn chưa thu tiền" khi có đơn Open (vẫn cho đóng). → kiểm chứng: vitest; xem tay trên dev server.
+- [x] **W1** `apiClient`: `idempotencyKey?: string` → header `Idempotency-Key`; retry sau refresh 401 dùng **cùng** key. → kiểm chứng: `apiClient.test.ts` ca mới xanh, đỏ khi retry không kèm header.
+- [x] **W2** Thu tiền: `usePayOrder` (key tạo lúc mở form, giữ tới khi thành công hoặc đóng form; `onSuccess` invalidate `orders`), `PaymentForm` inline trong thẻ đơn, `Receipt` giữ ở `OrderPanel` từ `pay.data` (đơn biến khỏi danh sách vẫn thấy biên nhận, tới khi bấm "Đơn mới"), 409 → toast đúng `detail` + refetch đơn, offline → nút disabled. POS lấy `?active=true`. → kiểm chứng: `npm --prefix web run build` + vitest xanh; `paymentSchemas.test.ts`.
+- [x] **W3** `CloseShiftForm` + `useCloseShift` gửi body, parse Zod; cảnh báo "Còn {n} đơn chưa thu tiền" khi có đơn Open (vẫn cho đóng). → kiểm chứng: vitest; xem tay trên dev server.
 
 ### Nhóm I — Tích hợp (sau khi gộp W)
 
-- [ ] **I1** Gộp nhánh web; `docker compose down -v && docker compose up -d --build && npm --prefix backend run seed`; viết `order-to-payment.spec.ts` (mục 0), sửa `helpers.ts`. Biến thể 20 phần: bấm vòng tròn các món còn hàng tới 20 phần, ≥ 10 dòng; "Gửi bếp" → "Thu tiền" → "Tiền mặt" → đo `performance.now()` từ bấm "Xác nhận thu" tới `Receipt` hiện, **< 2000ms**, ghi `b-latency.log`. → kiểm chứng: `npx playwright test` xanh 3 lần liên tiếp, log có 3 mốc.
-- [ ] **I2** Chụp 6 ảnh ở mục 0 bằng Playwright. → kiểm chứng: 6 file tồn tại, `b-total-mismatch-409.png` có câu "Đơn vừa thay đổi…".
-- [ ] **I3** Tài liệu 1a + `CHANGELOG.md` + README (JD: Idempotency, gRPC). → kiểm chứng: `grep -n "Idempotency\|gRPC" README.md` có dòng ở bảng JD.
-- [ ] **I4** `npm run sdlc:verify -- --all --e2e` → `docs/evidence/01-260925-fnb-pos-core/verify-slice-b.log`.
+- [x] **I1** Gộp nhánh web; `docker compose down -v && docker compose up -d --build && npm --prefix backend run seed`; viết `order-to-payment.spec.ts` (mục 0), sửa `helpers.ts`. Biến thể 20 phần: bấm vòng tròn các món còn hàng tới 20 phần, ≥ 10 dòng; "Gửi bếp" → "Thu tiền" → "Tiền mặt" → đo `performance.now()` từ bấm "Xác nhận thu" tới `Receipt` hiện, **< 2000ms**, ghi `b-latency.log`. → kiểm chứng: `npx playwright test` xanh 3 lần liên tiếp, log có 3 mốc. _Thực tế: 5/5 × 3 lần; `b-latency.log` 949 / 337 / 201ms._
+- [x] **I2** Chụp 6 ảnh ở mục 0 bằng Playwright. → kiểm chứng: 6 file tồn tại, `b-total-mismatch-409.png` có câu "Đơn vừa thay đổi…". _Chụp bằng spec tạm (không commit), `animations: 'disabled'` để toast/nút không bị chụp giữa transition; 409 thật do tab hai huỷ một món (hub của tab một bị chặn để giữ tổng cũ)._
+- [x] **I3** Tài liệu 1a + `CHANGELOG.md` + README (JD: Idempotency, gRPC). → kiểm chứng: `grep -n "Idempotency\|gRPC" README.md` có dòng ở bảng JD.
+- [x] **I4** `npm run sdlc:verify -- --all --e2e` → `docs/evidence/01-260925-fnb-pos-core/verify-slice-b.log`. _Thực tế: lần đầu `web:test` đỏ vì 6 worker vitest quá hạn 60s lúc khởi động ngay sau Testcontainers (không test nào chạy; chạy riêng 16/16 xanh); chạy lại toàn bộ: 8/8 cổng xanh, 119 test._
 
 ## 3. Thứ tự & song song hoá
 

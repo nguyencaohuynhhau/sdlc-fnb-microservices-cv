@@ -3,3 +3,7 @@
 2026-09-25T10:00:41.825Z order #4: POS→kitchen 776ms, kitchen Done→POS 132ms (budget 2000ms)
 2026-09-25T10:15:00.462Z order #5: POS→kitchen 1253ms, kitchen Done→POS 138ms (budget 2000ms)
 2026-09-25T10:21:04.532Z order #6: POS→kitchen 298ms, kitchen Done→POS 267ms (budget 2000ms)
+2026-09-25T16:09:19.218Z order #10: POS→kitchen 585ms, kitchen Done→POS 156ms (budget 2000ms)
+2026-09-25T16:09:44.427Z order #13: POS→kitchen 182ms, kitchen Done→POS 133ms (budget 2000ms)
+2026-09-25T16:09:59.631Z order #16: POS→kitchen 131ms, kitchen Done→POS 146ms (budget 2000ms)
+2026-09-25T16:38:42.911Z order #27: POS→kitchen 226ms, kitchen Done→POS 252ms (budget 2000ms)
