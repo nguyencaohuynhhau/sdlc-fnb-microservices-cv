@@ -2,295 +2,247 @@
 id: 01-260925-fnb-pos-core
 intent: ./intent.md
 spec: ./spec.md
-status: shipped
-shipped: 2026-09-26
-pr: https://github.com/nguyencaohuynhhau/sdlc-fnb-microservices-cv/pull/2
-branch: feat/01-260925-fnb-pos-core-slice-b
+status: draft
+branch: feat/01-260925-fnb-pos-core-slice-c
 generated_by: /sdlc:plan
-created: 2026-09-25
-approved: 2026-09-25 (người điều phối, qua /sdlc:build)
-slice: B — Tiền (spec §11). Lát A đã ship (PR #1, plan lưu ở plan-slice-a.md). Lát C/D có plan riêng sau khi B ship.
+created: 2026-09-26
+slice: C — Tồn kho (spec §11). Lát A (PR #1, `plan-slice-a.md`) và B (PR #2, `plan-slice-b.md`) đã ship. Lát D có plan riêng sau khi C ship.
 ---
 
-# Plan: Lát B — Thu tiền, idempotency, gRPC MarkPaid, đối chiếu tiền cuối ca
+# Plan: Lát C — Dịch vụ inventory, trừ kho theo `OrderPaid`, cờ hết hàng về POS
 
 > **Bài kiểm tra bàn giao:** một agent hoặc kỹ sư chưa từng đọc hội thoại nào của dự án này,
 > chỉ với `AGENTS.md` + `spec.md` + file này, phải làm được đúng việc. Nếu chưa, plan chưa xong.
 
-> **Phạm vi = lát B trong spec §11**: `POST /api/payments` (bắt buộc `Idempotency-Key`), gRPC
-> `OrderPayments.MarkPaid` cashier → ordering, sự kiện `OrderPaid`, đóng ca có đối chiếu tiền, POS
-> thu tiền + form đóng ca. Đạt tiêu chí chấp nhận **#4, #5, #8**. Tồn kho (C) và báo cáo (D)
-> **không** nằm ở đây.
+> **Phạm vi = lát C trong spec §11**: dịch vụ `inventory` (8084, DB `fnb_inventory`), công thức món,
+> consumer `OrderPaid` trừ kho **nhất quán cuối** qua Kafka, sự kiện `AvailabilityChanged` về
+> ordering để bật/tắt cờ hết hàng, màn `/inventory` cho chủ quán. Đạt tiêu chí chấp nhận **#6, #7**
+> và phần "trừ kho" của **#1** (seed) và **#12** (bằng chứng). Báo cáo (D) **không** nằm ở đây.
+> Kèm một việc quy trình: eval chặn lệch Node giữa CI và máy local (lộ ra ở lát B).
 
-> **Nền đã có từ lát A** (đọc code trước khi sửa): `Shift` aggregate + `ShiftsController`,
-> `Order` aggregate + `OrderService.MutateAsync` (If-Match ↔ xmin), outbox qua `Entity.Raise()` +
-> `OutboxInterceptor`, `DomainExceptionHandler` (ProblemDetails tiếng Việt), `FallbackPolicy`
-> bắt đăng nhập, gateway khai báo route bằng code ở `Gateway/Program.cs`.
+> **Nền đã có** (đọc code trước khi sửa): outbox qua `Entity.Raise()` + `OutboxInterceptor`
+> (`PartitionKey` của sự kiện làm Kafka key); `KafkaConsumerHost<TDb,TEvent>.ProcessAsync` = tx →
+> kiểm inbox → handler (chỉ sửa DbContext) → ghi inbox → SaveChanges → COMMIT → commit offset;
+> đăng ký bằng `AddMessaging<TDb>(…)` + `AddConsumer<TDb,TEvent,THandler>()`. Mỗi dịch vụ giữ **bản
+> sao record** sự kiện của dịch vụ khác (cùng topic, cùng tên trường JSON) — mẫu:
+> `Ordering.Infrastructure/ShiftEventsConsumer.cs`. `OrderPaid(OrderId, ShiftId, PaymentId, Total,
+> PaidAt, Lines[(MenuItemId, Qty)])` đã được phát từ lát B. `MenuItem.IsAvailable`/`SetAvailable`
+> và chặn gọi món hết hàng (`Order.cs` ~dòng 183) đã có; cache thực đơn Redis `menu:v1` TTL 60s
+> (`MenuCatalog.cs`). Cashier (`backend/src/Cashier/*`) là khuôn cho project mới. `fnb_inventory`
+> đã được tạo sẵn trong `docker/postgres-init.sql`.
 
 ## 0. Bằng chứng thành công (đọc trước tiên)
 
 Tác vụ chỉ hoàn thành khi **toàn bộ** lệnh sau chạy xanh, từ gốc repo, trên working tree sạch:
 
 ```bash
-npm run sdlc:evals                           # E01–E05 + P01–P04 xanh (P04: 4 gói gRPC có trong bảng §4)
+npm run sdlc:evals                           # E01–E05 + P01–P05 xanh (P05 mới, xem C1)
 npm run sdlc:verify -- --all                 # backend: format+build+unit · web: lint+build+vitest
-docker compose down -v && docker compose up -d --build   # 8 container healthy
-npm --prefix backend run seed                # "Seeded: 3 users, 20 menu items, 1 closed shift, 1 open shift, 3 open orders, 6 paid orders"
+docker compose down -v && docker compose up -d --build --wait   # 9 container healthy (thêm inventory)
+npm --prefix backend run seed                # "Seeded: 3 users, 20 menu items, 12 ingredients, 1 closed shift, 1 open shift, 3 open orders, 6 paid orders"
 set -a && . ./.env && set +a && npm run sdlc:verify -- --all --e2e   # + integration (Testcontainers) + Playwright
 ```
 
 Cộng thêm bằng chứng cụ thể của lát này:
 
-- [x] `backend/tests/Cashier.IntegrationTests/PaymentIdempotencyTests.cs` — `Payments_ConcurrentSameKey_CreatesOneLedgerEntry`: 5 request song song cùng key → cả 5 nhận 200 với **body giống hệt**, bảng `payments` đúng **1** dòng. Đỏ khi bỏ `ON CONFLICT DO NOTHING` / bỏ bước đọc lại key (tiêu chí **#5**)
-- [x] Cùng file: `Payments_SameKeyDifferentBody_Returns422`, `Payments_MissingKey_Returns400`, `Payments_TotalMismatch_Returns409` (detail có tổng thật, không có dòng `payments`), `Payments_NoOpenShift_Returns409`, `Payments_LostReply_RetrySameKeyCompletes`, `Payments_OrderingUnavailable_Returns503_NoLedgerEntry`, `Payments_TwoKeysSameOrder_OnlyOneCompleted`
-- [x] `backend/tests/Cashier.IntegrationTests/ShiftTests.cs` — `CloseShift_ReconcilesCash` (quỹ đầu 0 + 2 tiền mặt + 1 chuyển khoản, đếm lệch 5.000 → `expectedCash`, `variance = -5000`, `orderCount`, `revenue`, `cashTotal`, `transferTotal` đúng) và `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose` (payment đang giữ ca + đóng ca chen vào → đóng ca **chờ** và tính cả payment đó). Đỏ khi bỏ `FOR SHARE`/`FOR UPDATE` (tiêu chí **#8**)
-- [x] `backend/tests/Ordering.IntegrationTests/MarkPaidTests.cs` — gọi gRPC thật qua TestServer: `MarkPaid_TotalMismatch_ReturnsActualTotal`, `MarkPaid_SamePaymentIdTwice_IsIdempotent`, `MarkPaid_OtherPaymentId_AlreadyPaid`, `MarkPaid_WritesOrderPaidToOutbox`, `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds`, `MarkPaid_ConcurrentDifferentPayments_OnlyOneWins`, `MarkPaid_WithoutToken_Unauthenticated`, `MarkPaid_TotalWithDifferentScale_Matches`, `Kitchen_PaidOrderWithPendingItems_StillVisible`
-- [x] `web/e2e/order-to-payment.spec.ts` — (a) luồng đầy đủ spec §7: đăng nhập → mở ca → 3 món → bếp thấy ≤ 2s → "Xong" → thu tiền mặt → đóng ca, nhập tiền đếm, thấy tổng kết; (b) biến thể **20 phần / ≥ 10 dòng**: từ bấm "Xác nhận thu" tới biên nhận hiện **< 2000ms**, ghi vào `docs/evidence/01-260925-fnb-pos-core/b-latency.log` (tiêu chí **#4**). Chạy **qua gateway 8080** (nginx 5173 → gateway)
-- [x] Ảnh trong `docs/evidence/01-260925-fnb-pos-core/`: `b-payment-form.png`, `b-payment-receipt.png`, `b-total-mismatch-409.png` (409 **thật**: tab thứ hai thêm món trong lúc tab một đang mở form thu), `b-close-shift-summary.png`, `b-close-shift-open-orders-warning.png`, `b-payment-offline.png`
-- [x] Các test trong `requiredTests` (4 cũ + 2 mới) tồn tại và xanh; `ConcurrencyTests`, `OutboxTests`, `AuthTests` của lát A **không** đổi kỳ vọng
+- [ ] `backend/tests/Inventory.UnitTests/RecipeTests.cs` — 2 ly cà phê sữa đá → trừ 36g cà phê + 80ml sữa đặc (theo công thức seed); nguyên liệu từ trên ngưỡng xuống dưới ngưỡng → trả danh sách món bị tắt; đã dưới ngưỡng từ trước → **không** phát lại (tiêu chí **#6**)
+- [ ] `backend/tests/Inventory.IntegrationTests/StockDeductionTests.cs` (Testcontainers pg + kafka):
+  - `StockDeduction_DuplicateEvent_DeductsOnce` — cùng một `OrderPaid` qua `ProcessAsync` **3 lần** → `stock_movements` đúng 1 dòng mỗi nguyên liệu, `on_hand` trừ đúng 1 lần. Đỏ khi bỏ kiểm inbox **và** bỏ unique `(reason, ref_id, ingredient_id)` (từng cái một: bỏ inbox → unique vẫn chặn, test phải ghi rõ đang thử lớp nào)
+  - `StockDeduction_CrossesThreshold_PublishesAvailabilityChanged` — outbox có `AvailabilityChanged(menuItemId, false)` cho **mọi** món dùng nguyên liệu đó (tiêu chí **#7**)
+  - `StockDeduction_Oversold_GoesNegative_PublishesFailed` — tồn 10g, đơn cần 18g → `on_hand = -8`, `reason='oversold'`, outbox có `StockDeductionFailed`; **không** ném lỗi (spec §5: không rollback đơn đã thu)
+  - `StockDeduction_ItemWithoutRecipe_IsSkipped` — món không có công thức → không lỗi, không dòng movement, inbox vẫn ghi
+  - `OrderPaid_ContractMatchesOrdering` — serialize `Ordering.Domain.OrderPaid` thật bằng `OutboxInterceptor.Json`, deserialize thành bản sao ở inventory, trường khớp
+  - `Restock_RaisesAvailabilityWhenBackAboveThreshold`, `Ingredients_RequiresOwner` (cashier → 403)
+- [ ] `backend/tests/Ordering.IntegrationTests/AvailabilityProjectionTests.cs` — `AvailabilityChanged(false)` → `menu_items.is_available = false`, `GET /api/menu` trả `isAvailable:false` **ngay** (cache `menu:v1` bị xoá **sau** commit, không chờ TTL 60s); `POST` gọi món đó → 409 như lát A; contract test dùng record `Inventory.Domain.AvailabilityChanged`
+- [ ] `web/e2e/stock-deduction.spec.ts` (qua gateway, stack compose): (a) chủ quán mở `/inventory` ghi `on_hand` cà phê + sữa đặc → thu ngân bán 1 cà phê sữa đá, thu tiền → trong **≤ 10s** `/inventory` hiện đúng tồn cũ − 18g / − 40ml (tiêu chí **#6**); (b) bán 1 món có nguyên liệu sát ngưỡng → POS hiện badge "Hết" trên **mọi** món dùng nguyên liệu đó mà không cần tải lại trang (tiêu chí **#7**); cuối spec gọi restock để lần chạy sau vẫn đúng
+- [ ] Ảnh trong `docs/evidence/01-260925-fnb-pos-core/`: `c-inventory-table.png` (có dòng highlight dưới ngưỡng), `c-inventory-empty.png`, `c-inventory-after-sale.png`, `c-pos-sold-out.png`, `c-inventory-oversold.png` (tồn âm)
+- [ ] `docs/evals/cases/C04-ci-never-ran.md` tồn tại; `P05` đỏ khi đổi `node-version: 24` → `20` trong `ci.yml`, xanh khi trả lại
+- [ ] Các test trong `requiredTests` (6 cũ + `StockDeductionTests.cs`) tồn tại và xanh; `InboxDedupTests`, `ShiftProjectionTests`, `OutboxTests` **không** đổi kỳ vọng
 
 ## 1. Các file sẽ chạm
 
-### 1a. Config & tài liệu
+### 1a. Config, tài liệu, quy trình
 
 | File | Hành động | Mục đích |
 |------|-----------|----------|
-| `sdlc.config.json` | sửa | `requiredTests` += `PaymentIdempotencyTests.cs`, `MarkPaidTests.cs`; `e2eTriggers`: thay `backend/src/Cashier/Cashier.Domain` bằng `backend/src/Cashier`, thêm `backend/src/Shared/Protos` |
-| `docker-compose.yml` | sửa | `ordering`: `Kestrel__Endpoints__Http__Url=http://+:8082`, `Kestrel__Endpoints__Grpc__Url=http://+:8092`, `Kestrel__Endpoints__Grpc__Protocols=Http2` (giữ `ASPNETCORE_HTTP_PORTS=8082` cho healthcheck; **không** publish 8092). `cashier`: `Services__OrderingGrpc=http://ordering:8092`, `depends_on: ordering: service_healthy` |
-| `docs/api/endpoints.md` | sửa | `POST /api/payments`, body mới của `close`, `GET /api/orders?active=true`, bảng lỗi 422/503, mục gRPC nội bộ |
-| `docs/database/schema.md` | sửa | `payments`, `idempotency_keys`, `orders.paid_at`/`paid_payment_id`; ghi lệch spec (xem B2) |
-| `docs/architecture/STRUCTURE.md` | sửa | thêm `backend/src/Shared/Protos/` |
-| `README.md` | sửa | bảng đối chiếu JD: điền dòng **Idempotency**, **gRPC**; dòng output seed mới |
-| `CHANGELOG.md` | sửa | mục mới (bước 5 của `/sdlc:build`) |
-| `docs/intents/INDEX.md` | sửa | trạng thái lát B |
+| `docs/intents/01-260925-fnb-pos-core/plan-slice-b.md` | đổi tên (từ `plan.md`) | lưu plan lát B, như `plan-slice-a.md` |
+| `docs/intents/INDEX.md` | sửa | cột status: "lát C đang plan/build" |
+| `sdlc.config.json` | sửa | `e2eTriggers` += `backend/src/Inventory`; `requiredTests` += `backend/tests/Inventory.IntegrationTests/StockDeductionTests.cs` (**chỉ sau khi file tồn tại** — E05) |
+| `docker-compose.yml` | sửa | service `inventory` (build `backend/Dockerfile`, `PROJECT=Inventory/Inventory.Api`, 8084 **không** publish, `ConnectionStrings__Inventory`, Kafka, JWT, healthcheck như cashier); `gateway`: `Services__Inventory=http://inventory:8084`, `depends_on: inventory: service_healthy`; `seeder` env (nếu seeder chạy qua compose) `ConnectionStrings__Inventory` |
+| `.env.example` | không đổi | dùng lại `POSTGRES_PASSWORD` — kiểm lại khi build, sửa nếu cần biến mới |
+| `docs/api/endpoints.md` | sửa | `GET /api/inventory/ingredients`, `POST /api/inventory/ingredients/{id}/restock`, 2 topic mới |
+| `docs/database/schema.md` | sửa | mục `fnb_inventory`; **sửa dòng 53–54** ("order-cancelled → lát C hoàn kho") cho khớp spec: đơn chỉ trừ kho khi `Paid`, đơn Paid không huỷ được → không có hoàn kho |
+| `docs/architecture/STRUCTURE.md` | sửa | thêm `backend/src/Inventory/`, test project |
+| `README.md` | sửa | sơ đồ thêm inventory; dòng JD "Saga / nhất quán cuối cùng"; chuỗi seed |
+| `CHANGELOG.md` | sửa | mục lát C |
+| `docs/evals/project-evals.mjs` | sửa | **P05** (xem C1) |
+| `docs/evals/cases/C04-ci-never-ran.md` | tạo | ca quy trình (xem C1) |
 
 ### 1b. `backend/`
 
 | File | Hành động | Mục đích |
 |------|-----------|----------|
-| `Directory.Packages.props` | sửa | 4 gói gRPC ở §4, version stable mới nhất lúc build, ghim cứng |
-| `src/Shared/Protos/order_payments.proto` | tạo | `package fnb.ordering.v1; service OrderPayments { rpc MarkPaid }` — tiền là **string** invariant, không `double` |
-| `src/Shared/Shared.Kernel/DomainException.cs` | sửa | thêm `UnprocessableRequestException` (422), `DependencyUnavailableException` (503) |
-| `src/Shared/Shared.Kernel/Topics.cs` | sửa | `OrderPaid = "fnb.ordering.order-paid.v1"` |
-| `src/Shared/Shared.Web/WebExtensions.cs` | sửa | `DomainExceptionHandler` map 422, 503 |
-| `src/Ordering/Ordering.Domain/Order.cs` | sửa | `PaidAt`, `PaidPaymentId`, `MarkPaid(paymentId, expectedTotal, now)` → `MarkPaidOutcome`; `SetItemStatus` cho phép khi `Paid`; `IsActive`; record `OrderPaid` |
-| `src/Ordering/Ordering.Application/OrderService.cs` | sửa | `MarkPaidAsync` (re-read + retry ≤ 3 lần khi xmin xung đột, notify sau commit) |
-| `src/Ordering/Ordering.Application/Abstractions.cs` | sửa | `ListByShiftAsync` nhận scope `Active` |
-| `src/Ordering/Ordering.Application/Views.cs` | sửa | `OrderView` thêm `PaidAt` |
-| `src/Ordering/Ordering.Infrastructure/OrderRepository.cs` | sửa | lọc Active (Open, hoặc Paid còn món Pending/Preparing) |
-| `src/Ordering/Ordering.Infrastructure/OrderingDbContext.cs` | sửa | map `paid_at`, `paid_payment_id` unique-nullable |
-| `src/Ordering/Ordering.Infrastructure/Migrations/<ts>_OrderPaid.cs` (+ Designer, snapshot) | tạo | migration **chỉ thêm cột** |
-| `src/Ordering/Ordering.Api/Ordering.Api.csproj` | sửa | `Grpc.AspNetCore`; `<Protobuf Include="..\..\Shared\Protos\order_payments.proto" GrpcServices="Server" />` — _thực tế: `Both`, vì sinh client lại ở project test sẽ trùng kiểu message với `Ordering.Api` (CS0436); client dư là một lớp không ai gọi ở prod_ |
-| `src/Ordering/Ordering.Api/Grpc/OrderPaymentsService.cs` | tạo | `[Authorize(Roles = "Cashier,Owner")]`, parse tiền invariant, `NotFound` → `RpcException(StatusCode.NotFound)` |
-| `src/Ordering/Ordering.Api/Program.cs` | sửa | `AddGrpc()`, `MapGrpcService<OrderPaymentsService>()` |
-| `src/Ordering/Ordering.Api/Controllers/OrdersController.cs` | sửa | `GET /api/orders?active=true`; `/api/kitchen/orders` dùng Active |
-| `src/Cashier/Cashier.Domain/Shift.cs` | sửa | `Close(countedCash, cashTotal, now)` tính `ExpectedCash`, `Variance`; `ShiftClosed` thêm `CountedCash, ExpectedCash, Variance` (thêm trường, không đổi topic) |
-| `src/Cashier/Cashier.Domain/Payment.cs` | tạo | `Payment` (id = Idempotency-Key), `PaymentMethod { Cash, Transfer }`, `PaymentStatus` |
-| `src/Cashier/Cashier.Application/IOrderPayments.cs` | tạo | cổng sang ordering + `MarkPaidResult` (Ok / TotalMismatch(actual) / AlreadyPaid / OrderCancelled / NotFound) |
-| `src/Cashier/Cashier.Application/IPaymentLedger.cs` | tạo | transaction: giữ key, khoá ca, ghi payment, lưu phản hồi; tổng tiền theo ca |
-| `src/Cashier/Cashier.Application/PayOrderHandler.cs` | tạo | luồng thu tiền (B5) |
-| `src/Cashier/Cashier.Application/CloseShiftHandler.cs` | sửa | khoá ca `FOR UPDATE` → cộng payments → `Close` → trả tổng kết |
-| `src/Cashier/Cashier.Application/IShiftRepository.cs` | sửa | nếu cần thêm `LockForCloseAsync` |
-| `src/Cashier/Cashier.Infrastructure/Cashier.Infrastructure.csproj` | sửa | `Grpc.Net.ClientFactory`, `Google.Protobuf`, `Grpc.Tools` (PrivateAssets); `<Protobuf ... GrpcServices="Client" />` |
-| `src/Cashier/Cashier.Infrastructure/CashierDbContext.cs` | sửa | `payments`, `idempotency_keys` |
-| `src/Cashier/Cashier.Infrastructure/Migrations/<ts>_Payments.cs` (+ Designer, snapshot) | tạo | hai bảng mới, partial unique `(order_id) WHERE status = 'Completed'` |
-| `src/Cashier/Cashier.Infrastructure/PaymentLedger.cs` | tạo | SQL `INSERT … ON CONFLICT DO NOTHING`, `SELECT … FOR SHARE` |
-| `src/Cashier/Cashier.Infrastructure/ShiftRepository.cs` | sửa | `SELECT … FOR UPDATE` khi đóng ca |
-| `src/Cashier/Cashier.Infrastructure/OrderPaymentsClient.cs` | tạo | gRPC client, deadline 3s, `Unavailable`/`DeadlineExceeded` → `DependencyUnavailableException` |
-| `src/Cashier/Cashier.Infrastructure/ForwardAuthHandler.cs` | tạo | `DelegatingHandler` chép `Authorization` của request hiện tại sang lời gọi gRPC |
-| `src/Cashier/Cashier.Infrastructure/DependencyInjection.cs` | sửa | `AddHttpContextAccessor`, `AddGrpcClient<…>().AddHttpMessageHandler<ForwardAuthHandler>()`, đăng ký handler/ledger |
-| `src/Cashier/Cashier.Api/Controllers/PaymentsController.cs` | tạo | `POST /api/payments`, `[Authorize(Roles = "Cashier,Owner")]`, đọc header `Idempotency-Key` |
-| `src/Cashier/Cashier.Api/Contracts/PaymentContracts.cs` | tạo | `CreatePaymentRequest` (đúng spec §4), `PaymentResponse` |
-| `src/Cashier/Cashier.Api/Contracts/ShiftContracts.cs` | sửa | `CloseShiftRequest(decimal CountedCash)`, `ShiftSummaryResponse` |
-| `src/Cashier/Cashier.Api/Controllers/ShiftsController.cs` | sửa | `close` nhận body |
-| `src/Gateway/Program.cs` | sửa | `Route("/api/payments", "cashier")` |
-| `tools/Seeder/DemoData.cs` | sửa | ca hôm qua: 6 đơn Paid + payments (tiền mặt & chuyển khoản) + đóng ca có đối chiếu; chuỗi tổng kết mới |
-| `tests/Ordering.UnitTests/OrderTests.cs` | sửa | luật `MarkPaid`; `SetItemStatus` khi Paid được, `AddItem`/`CancelItem` khi Paid bị chặn |
-| `tests/Cashier.UnitTests/ShiftTests.cs` | sửa | `Close_ComputesExpectedAndVariance`; cập nhật lời gọi `Close` cũ |
-| `tests/Ordering.IntegrationTests/MarkPaidTests.cs` | tạo | xem mục 0 |
-| ~~`tests/Ordering.IntegrationTests/Ordering.IntegrationTests.csproj`~~ | _không chạm_ | _thực tế: client lấy từ `Ordering.Api` (xem dòng csproj trên)_ |
-| `tests/Ordering.IntegrationTests/OrderingFixture.cs` | sửa | _thực tế: tách `TokenFor(role)` để gắn JWT vào metadata gRPC_ |
-| `tests/Cashier.IntegrationTests/PaymentIdempotencyTests.cs` | tạo | xem mục 0 |
-| `tests/Cashier.IntegrationTests/FakeOrderPayments.cs` | tạo | giả ordering: nhớ `orderId → paymentId` (cùng luật idempotent), trễ cấu hình được, chế độ "làm xong rồi mất phản hồi", "Unavailable" |
-| `tests/Cashier.IntegrationTests/CashierFixture.cs` | sửa | `ConfigureTestServices` thay `IOrderPayments` bằng fake |
-| `tests/Cashier.IntegrationTests/ShiftTests.cs` | sửa | lời gọi `close` gửi body `{ countedCash }`; 2 ca mới |
-| `tests/Gateway.Tests/GatewayTests.cs` | sửa | `InlineData("/api/payments", "cashier")` |
-| `tests/Seeder.IntegrationTests/SeederTests.cs` | sửa | chuỗi tổng kết mới; ca hôm qua có `variance` |
+| `backend/FnbPos.sln` | sửa | thêm 4 project Inventory + 2 test project |
+| `backend/package.json` | kiểm | `test`/`test:e2e` chạy theo sln hay liệt kê project? liệt kê → thêm Inventory |
+| `backend/src/Shared/Shared.Kernel/Topics.cs` | sửa | `AvailabilityChanged = "fnb.inventory.availability-changed.v1"`, `StockDeductionFailed = "fnb.inventory.stock-deduction-failed.v1"` |
+| `backend/src/Shared/Shared.Messaging/KafkaConsumerHost.cs` | sửa | `IIntegrationEventHandler<TEvent>` thêm `Task AfterCommitAsync(TEvent e, CancellationToken ct) => Task.CompletedTask;` (default interface method — handler cũ không đổi); `ProcessAsync` gọi nó **sau** `tx.CommitAsync`, chỉ khi thật sự xử lý (không gọi khi trùng inbox) |
+| `backend/src/Inventory/Inventory.Domain/` | tạo | `Ingredient` (Entity; `Name`, `Unit`, `OnHand decimal(18,3)`, `LowThreshold`, `IsLow => OnHand < LowThreshold`, `xmin`), `RecipeLine(MenuItemId, IngredientId, QtyPerUnit)`, `StockMovement(Id, IngredientId, Delta, Reason, RefId, CreatedAt)` với `Reason ∈ {sale, oversold, restock}`, `StockDeduction` (hàm thuần: nhận dòng đơn + công thức + tồn hiện tại → movements + món bị tắt/bật), sự kiện `AvailabilityChanged(MenuItemId, IsAvailable, ChangedAt)` (PartitionKey = MenuItemId), `StockDeductionFailed(OrderId, IngredientId, Shortfall, OccurredAt)` (PartitionKey = OrderId), bản sao `OrderPaid` + `OrderPaidLine` |
+| `backend/src/Inventory/Inventory.Application/` | tạo | `IInventoryQueries` (danh sách nguyên liệu), `RestockHandler` |
+| `backend/src/Inventory/Inventory.Infrastructure/` | tạo | `InventoryDbContext` (+ `MessagingDbConfig`, `UseSnakeCaseNames`), migration `Initial`, `OrderPaidConsumer : IIntegrationEventHandler<OrderPaid>`, `DependencyInjection.cs`, `DesignTimeFactory.cs` — chép khuôn Cashier |
+| `backend/src/Inventory/Inventory.Api/` | tạo | `Program.cs` (khuôn Cashier: JWT, FallbackPolicy, ProblemDetails, `/healthz`, Dev-only migrate), `IngredientsController` (`[Authorize(Roles = "Owner")]`): `GET /api/inventory/ingredients`, `POST /api/inventory/ingredients/{id}/restock` body `RestockRequest([Range(0.001, 1_000_000)] decimal Qty)` |
+| `backend/src/Ordering/Ordering.Infrastructure/AvailabilityConsumer.cs` | tạo | bản sao `AvailabilityChanged`; `HandleAsync` → `SetAvailable`; `AfterCommitAsync` → xoá `menu:v1` (nuốt lỗi Redis như `MenuCatalog`) + `IMenuNotifier.MenuChangedAsync()` |
+| `backend/src/Ordering/Ordering.Application/Abstractions.cs` | sửa | `IMenuNotifier` (hoặc thêm method vào notifier hiện có nếu gọn hơn — xem khi build) |
+| `backend/src/Ordering/Ordering.Api/Hubs/OrdersHub.cs` | sửa | notifier gửi `Clients.All.SendAsync("menuChanged")` — không kèm payload, client tự refetch |
+| `backend/src/Ordering/Ordering.Infrastructure/DependencyInjection.cs` | sửa | `AddConsumer<OrderingDbContext, AvailabilityChanged, AvailabilityConsumer>()` |
+| `backend/src/Gateway/Program.cs` | sửa | route `/api/inventory/{**rest}` → `Services:Inventory`; `/healthz` gộp thêm inventory |
+| `backend/tools/Seeder/*` | sửa | tham chiếu `Inventory.Infrastructure`; 12 nguyên liệu + công thức cho 20 món (ghép theo **tên** món → id từ `fnb_ordering`); bỏ `SoldOut` gán tay — thay bằng nguyên liệu của "Bánh flan" (trứng) seed **dưới** ngưỡng và seeder đặt `is_available` ở ordering theo đúng quy tắc của inventory; một nguyên liệu (đào ngâm của "Trà đào cam sả") seed **sát** ngưỡng cho e2e #7; chạy 2 lần không nhân đôi; chuỗi tổng kết thêm `12 ingredients` |
+| `backend/tests/Inventory.UnitTests/` | tạo | `RecipeTests.cs` |
+| `backend/tests/Inventory.IntegrationTests/` | tạo | `InventoryFixture.cs` (khuôn `OrderingFixture`: pg + kafka, `ClientAs(role)`), `StockDeductionTests.cs`; csproj tham chiếu `Ordering.Domain` cho contract test |
+| `backend/tests/Ordering.IntegrationTests/AvailabilityProjectionTests.cs` | tạo | xem mục 0; csproj thêm tham chiếu `Inventory.Domain` |
+| `backend/tests/Gateway.Tests/GatewayTests.cs` | sửa | `InlineData` thêm `/api/inventory/ingredients` (401 không token, định tuyến đúng) |
+| `backend/tests/Seeder.Tests/SeederTests.cs` (đường dẫn thật xem khi build) | sửa | chuỗi tổng kết mới; "Bánh flan" hết hàng **vì** trứng dưới ngưỡng |
 
 ### 1c. `web/`
 
 | File | Hành động | Mục đích |
 |------|-----------|----------|
-| `src/lib/apiClient.ts` | sửa | tuỳ chọn `idempotencyKey` → header `Idempotency-Key`; giữ nguyên khi retry sau refresh 401 |
-| `src/lib/__tests__/apiClient.test.ts` | sửa | gửi header; retry sau 401 **cùng** key |
-| `src/lib/queryKeys.ts` | sửa | `orders.list` theo scope active (nếu cần) |
-| `src/features/orders/useOrders.ts` | sửa | `/api/orders?active=true` |
-| `src/features/orders/orderSchemas.ts` | sửa | `paidAt` nullable |
-| `src/features/orders/OrderPanel.tsx` | sửa | nút "Thu tiền" (đơn Open, tổng > 0), `PaymentForm` inline, biên nhận; đơn Paid chỉ hiện trạng thái bếp |
-| `src/features/payment/usePayOrder.ts` | tạo | mutation, key sinh bằng `crypto.randomUUID()` lúc **mở** form, dùng lại khi bấm lại |
-| `src/features/payment/paymentSchemas.ts` | tạo | Zod cho `PaymentResponse` |
-| `src/features/payment/PaymentForm.tsx` | tạo | chọn "Tiền mặt"/"Chuyển khoản", "Xác nhận thu {tổng}", disabled khi offline |
-| `src/features/payment/Receipt.tsx` | tạo | biên nhận: mã đơn, món, tổng, phương thức, giờ |
-| `src/features/payment/__tests__/paymentSchemas.test.ts` | tạo | parse phản hồi thật mẫu, từ chối số tiền là chuỗi |
-| `src/features/payment/__tests__/PaymentForm.test.tsx` | tạo | _(thêm khi build)_ bấm lại sau 503 gửi **cùng** khoá, đóng/mở form sinh khoá mới — khoá sống ở form (`useState`), không ở `usePayOrder` |
-| `src/features/orders/__tests__/orderSchemas.test.ts` | sửa | _(thêm khi build)_ fixture thêm `paidAt: null` — API lát B trả trường này ở mọi đơn |
-| `src/features/shift/useShift.ts` | sửa | `useCloseShift` gửi `{ countedCash }`, parse `ShiftSummary` |
-| `src/features/shift/CloseShiftForm.tsx` | tạo | đếm mù: nhập tiền đếm → xác nhận → hiện số đơn, doanh thu, dự kiến, đếm được, lệch; cảnh báo (không chặn) khi còn đơn Open |
-| `src/features/shift/ShiftBar.tsx` | sửa | "Đóng ca" mở `CloseShiftForm` thay vì đóng ngay |
-| `e2e/order-to-payment.spec.ts` | tạo | xem mục 0 |
-| `e2e/helpers.ts` | sửa | _(khác plan)_ `ensureShiftOpen` không cần đổi (luồng mở ca giữ nguyên); chỉ thêm `hubJoined` dùng chung |
-| `e2e/order-to-kitchen.spec.ts` | sửa | _(thêm khi build)_ import `hubJoined` từ `helpers.ts` thay cho bản sao cục bộ |
-| `playwright.config.ts` | sửa | _(thêm khi build)_ `workers: 1` — mọi spec dùng chung một ca đang mở trên stack thật, `order-to-payment` đóng ca giữa chừng → chạy song song làm spec khác đỏ ngẫu nhiên |
+| `web/package.json` | sửa | `@tanstack/react-table` — **đã duyệt** ở `plan-slice-a.md` §4, spec §6 chỉ định cho `IngredientTable` |
+| `web/src/routes/_auth/inventory.tsx` | tạo | route Owner; `validateSearch` Zod `{ filter: 'all' \| 'low' }` mặc định `all` (spec §6: nguồn chân lý ở URL) |
+| `web/src/features/inventory/IngredientTable.tsx`, `useIngredients.ts`, `schemas.ts` (+ test) | tạo | TanStack Table: tên, đơn vị, tồn, ngưỡng; dòng dưới ngưỡng highlight + badge; tồn âm tô đỏ; trạng thái rỗng; `columns` khai báo ngoài component (spec §6 dòng 312); nút "Nhập kho" inline gọi restock |
+| `web/src/lib/queryKeys.ts` | sửa | `inventory.ingredients(filter)` |
+| `web/src/lib/signalr.ts` | sửa | `menuChanged` → invalidate `queryKeys.menu` |
+| `web/src/routes/_auth.tsx` (hoặc nav hiện có) | sửa | link "Tồn kho" chỉ khi role Owner |
+| `web/src/routes/index.tsx` | sửa | Owner vào `/inventory` (nếu hiện đang redirect theo role) |
+| `web/e2e/stock-deduction.spec.ts`, `web/e2e/helpers.ts` | tạo / sửa | mục 0; helper đăng nhập `owner` |
 
-**Không** chạm tới file nào ngoài danh sách này mà không cập nhật plan trước.
+`web/src/routeTree.gen.ts` sẽ tự sinh lại khi thêm route — **được** commit phần thêm route (lát trước chỉ lệch CRLF, không stage).
 
 ## 2. Các bước thực thi
 
 Đánh dấu `[x]` ngay khi xong từng bước, trước khi sang bước sau.
 
-### Nhóm B0 — Khung
+### Nhóm C0 — Khung & quy trình
 
-- [x] **B0.1** `sdlc.config.json` theo bảng 1a. → kiểm chứng: `npm run sdlc:evals` xanh; sửa một dòng trong `backend/src/Cashier/Cashier.Api` rồi `npm run sdlc:verify` in e2e được bật.
-  _Thực tế: `requiredTests` chỉ thêm được khi file test đã tồn tại (eval E05 đỏ nếu thiếu) → `MarkPaidTests.cs` thêm ở B3, `PaymentIdempotencyTests.cs` ở B5._
-- [x] **B0.2** Thêm 4 gói gRPC vào `Directory.Packages.props` (tra version stable mới nhất bằng `dotnet package search <tên> --exact-match`, ghim cứng). → kiểm chứng: `npm run sdlc:evals` — P04 xanh. _Ghim: Grpc.* 2.84.0, Google.Protobuf 3.36.2._
+- [ ] **C1** Eval **P05** trong `docs/evals/project-evals.mjs`: mọi `node-version: N` trong `.github/workflows/*.yml` phải cùng major với `FROM node:N` của `web/Dockerfile`; lệch → đỏ, nêu cả hai số. Ca `docs/evals/cases/C04-ci-never-ran.md` (khuôn C03): *Prompt* — ship xong, push, "CI đã chạy"; *Hành vi đúng* — trước khi báo xong, `gh run list --branch <nhánh> --limit 1` + `gh run view <id>` xác nhận **mọi job** `completed/success`; `startup_failure`, `queued` quá lâu, bị khoá billing = **CI chưa chạy**, không phải xanh; job đỏ mà local xanh → so phiên bản toolchain (Node/.NET) trước khi sửa code; *Must not* — coi "verify local xanh" là bằng chứng CI; báo PR sẵn sàng khi run chưa kết thúc; *Vì sao* — lát B: CI khoá billing hai lần, lần chạy được thì `web:test` đỏ do CI Node 20 còn local Node 24 (undici 8 cần ≥ 22.19); verify local không thể thấy. → kiểm chứng: `npm run sdlc:evals` P05 xanh; sửa tạm `ci.yml` về `20` → P05 đỏ; trả lại.
+- [ ] **C2** `Topics.cs` 2 hằng mới; `IIntegrationEventHandler.AfterCommitAsync` + gọi sau commit trong `ProcessAsync`. → kiểm chứng: `npm --prefix backend test` xanh; `InboxDedupTests`, `ShiftProjectionTests` xanh **không sửa**.
+- [ ] **C3** Tạo 4 project Inventory + 2 test project (chép khuôn Cashier, đổi tên), thêm vào sln, `package.json` backend nếu cần. → kiểm chứng: `dotnet build backend/FnbPos.sln` xanh; `npm run sdlc:evals` P02 xanh (không `[AllowAnonymous]` mới ngoài `/healthz` đã duyệt — nếu `/healthz` của inventory cần `AllowAnonymous` như dịch vụ khác thì thêm file vào `public-endpoints.json` **đúng khuôn các dịch vụ trước**, ghi lý do).
 
 ### Nhóm B — Backend
 
-- [x] **B1** Ordering domain: `Order.MarkPaid(paymentId, expectedTotal, now)`:
-  đã Paid **cùng** `paymentId` → `Ok` không làm gì; Paid khác `paymentId` → `AlreadyPaid`;
-  `Cancelled` → `OrderCancelled`; `Total != expectedTotal` (so `decimal`) → `TotalMismatch(Total)`;
-  còn lại → `Status = Paid`, `PaidAt`, `PaidPaymentId`, `Touch`, `Raise(new OrderPaid(OrderId, ShiftId, PaymentId, Total, PaidAt, Lines[(MenuItemId, Qty)] của món chưa huỷ))`.
-  `SetItemStatus` cho phép khi `Open` **hoặc** `Paid`; `AddItem`/`CancelItem`/`Cancel` vẫn chỉ khi `Open`.
-  `Topics.OrderPaid`. → kiểm chứng: `npm --prefix backend test` — ca mới trong `OrderTests` xanh, đỏ khi bỏ nhánh "cùng paymentId".
-- [x] **B2** Migration ordering (`paid_at timestamptz null`, `paid_payment_id uuid null` unique) và cashier (`payments`, `idempotency_keys(key, endpoint) pk`, `request_hash`, `response_status`, `response_body jsonb`, `created_at`). Ghi lệch spec vào `schema.md`: **chỉ dòng `Completed` được lưu** — `Pending` chỉ tồn tại trong transaction chưa commit nên không bao giờ nhìn thấy được; cột `status` và index partial giữ nguyên như spec làm chốt chặn thứ hai. → kiểm chứng: `dotnet ef migrations script` của mỗi dịch vụ chỉ có `ADD COLUMN`/`CREATE TABLE`/`CREATE INDEX`, không `DROP`/`ALTER … TYPE`.
-- [x] **B3** Proto + server: `order_payments.proto` (`MarkPaidRequest { string order_id; string expected_total; string payment_id; }`, `MarkPaidReply { oneof result { Ok ok; TotalMismatch total_mismatch; AlreadyPaid already_paid; OrderCancelled order_cancelled; } }`, `TotalMismatch { string actual_total; }`). `OrderPaymentsService` parse `decimal.Parse(s, CultureInfo.InvariantCulture)`, trả `actual_total` bằng `ToString("0.00", InvariantCulture)`. `OrderService.MarkPaidAsync`: vòng tối đa 3 lần {đọc đơn → `MarkPaid` → `TrySaveAsync`}; xung đột xmin → đọc lại, kiểm lại; hết lượt → `RpcException(Aborted)`. Notify `orderUpdated` **sau** commit. Kestrel hai endpoint qua env compose (1a). → kiểm chứng: `MarkPaidTests` xanh; `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds` dùng một `SaveChangesInterceptor` của test chèn `UPDATE orders … ` từ connection khác trước lần lưu đầu → buộc xung đột thật; đỏ khi hạ retry xuống 1.
-- [x] **B4** Scope "Active": `GET /api/orders?active=true` (giữ `?status=` cho tương thích) và `/api/kitchen/orders` = Open **hoặc** (Paid **và** còn món `Pending`/`Preparing`). → kiểm chứng: `Kitchen_PaidOrderWithPendingItems_StillVisible` xanh; bếp PATCH món của đơn Paid → 200.
-- [x] **B5** Cashier thu tiền — `PayOrderHandler`, **một** transaction Postgres:
-  1. `Idempotency-Key` thiếu / không phải UUID → `InvalidRequestException` 400 "Yêu cầu không hợp lệ." (log lý do phía server **không** kèm giá trị key).
-  2. `request_hash = SHA-256("{OrderId}|{ExpectedTotal.ToString("0.00", Invariant)}|{Method}")` — chuẩn hoá scale để `45000` và `45000.00` không bị coi là khác.
-  3. `INSERT INTO idempotency_keys (key, endpoint='POST /api/payments', request_hash) … ON CONFLICT DO NOTHING`. Request trùng key đang chạy song song sẽ **chờ** ở đây tới khi request đầu commit/rollback.
-  4. 0 dòng → `SELECT` dòng đó: hash khác → 422 "Yêu cầu không khớp với lần gửi trước."; hash giống → trả nguyên `response_status` + `response_body` đã lưu.
-  5. `SELECT … FROM shifts WHERE closed_at IS NULL FOR SHARE` — không có → 409 "Chưa mở ca làm việc."
-  6. gRPC `MarkPaid(orderId, expectedTotal, paymentId = Idempotency-Key)`, deadline 3s, JWT của người gọi đi kèm. `TotalMismatch` → 409 "Đơn vừa thay đổi, tổng tiền hiện tại là {x}. Kiểm tra lại rồi thu tiền." (x định dạng `N0` vi-VN); `AlreadyPaid` → 409 "Đơn này đã được thanh toán."; `OrderCancelled` → 409 "Đơn đã bị huỷ."; `NotFound` → 404 "Không tìm thấy đơn."; không kết nối/hết giờ → 503 "Không kết nối được dịch vụ đơn hàng. Thử lại sau giây lát."
-  7. `Ok` → insert `payments` (`id = key`, `status = Completed`), lưu phản hồi 200 vào `idempotency_keys`, COMMIT.
-  Mọi lỗi ở bước 5–6 **rollback** cả dòng key → bấm lại cùng key vẫn chạy lại được.
-  → kiểm chứng: `PaymentIdempotencyTests` xanh; đột biến bỏ `ON CONFLICT` → `ConcurrentSameKey` đỏ (500 / 2 dòng); đột biến lưu cả phản hồi lỗi → `LostReply` đỏ.
-- [x] **B6** Đóng ca có đối chiếu: `POST /api/shifts/{id}/close` body `CloseShiftRequest([Range(typeof(decimal), "0", "1000000000")] decimal CountedCash)`. Handler: `SELECT … FOR UPDATE` ca → cộng payments của ca (`cashTotal`, `transferTotal`, `orderCount`) → `Shift.Close(countedCash, cashTotal, now)` (`ExpectedCash = OpeningFloat + cashTotal`, `Variance = CountedCash − ExpectedCash`) → trả `ShiftSummaryResponse` (trường của `Shift` + `OrderCount`, `Revenue`, `CashTotal`, `TransferTotal`). `ShiftClosed` mang thêm `CountedCash, ExpectedCash, Variance` cho lát D. → kiểm chứng: `CloseShift_ReconcilesCash`, `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose` (fake MarkPaid trễ 500ms; đóng ca gửi sau 100ms phải chờ và `cashTotal` gồm payment đó; đỏ khi bỏ khoá), `Close_ComputesExpectedAndVariance` xanh; các ca `ShiftTests` cũ chỉ đổi phần gửi body.
-- [x] **B7** Nối dây: gRPC client + `ForwardAuthHandler`, route gateway `/api/payments`, compose (1a). → kiểm chứng: `GatewayTests` xanh; `docker compose up -d --build` → 8 container healthy; `curl` qua 8080 với token cashier: `POST /api/payments` thiếu key → 400.
-- [x] **B8** Seeder: ca hôm qua có 6 đơn Paid (4 tiền mặt, 2 chuyển khoản) + payments tương ứng + đóng ca đếm lệch nhỏ; chạy 2 lần không nhân đôi; chuỗi "…, 3 open orders, 6 paid orders". → kiểm chứng: `SeederTests` xanh; `npm --prefix backend run seed` hai lần cùng output. _Thực tế: DB dev đã có ca từ lát A nên seed lại không thêm ca hôm qua — idempotency kiểm bằng `SeedTwice_SameSummary_NoDuplicates` trên DB trắng; thêm `YesterdayShift_ReconciledAgainstItsPayments`._
+- [ ] **B1** Domain inventory + `RecipeTests` (viết test trước). `StockDeduction.Apply(lines, recipes, ingredients, orderId, now)`:
+  gộp nhu cầu theo nguyên liệu (`Σ qty × qty_per_unit`); với mỗi nguyên liệu: `wasLow = IsLow`, trừ, `reason = OnHand − need < 0 ? oversold : sale` (oversold vẫn trừ, cho về âm, + `StockDeductionFailed`); `!wasLow && IsLow` → mọi món dùng nguyên liệu đó `AvailabilityChanged(false)`. Restock: `wasLow && !IsLow` → món dùng nó `AvailabilityChanged(true)` **chỉ khi** mọi nguyên liệu khác của món đó cũng không low. Món trùng nhiều nguyên liệu cùng qua ngưỡng → **một** sự kiện mỗi món. → kiểm chứng: `RecipeTests` xanh; đột biến bỏ điều kiện `!wasLow` → ca "đã dưới ngưỡng không phát lại" đỏ.
+- [ ] **B2** `InventoryDbContext` + migration `Initial`: `ingredients` (`on_hand numeric(18,3)`, `low_threshold numeric(18,3)`, `xmin`), `recipe_lines` pk `(menu_item_id, ingredient_id)` + index `(ingredient_id)`, `stock_movements` index `(ingredient_id, created_at)` + **unique `(reason, ref_id, ingredient_id)`**, outbox/inbox. → kiểm chứng: `dotnet ef migrations script` chỉ `CREATE`; unique có trong script.
+- [ ] **B3** `OrderPaidConsumer.HandleAsync`: nạp công thức của các `MenuItemId` trong đơn + nguyên liệu liên quan (**một** truy vấn mỗi loại, `FOR UPDATE` trên các dòng `ingredients` theo thứ tự id để hai đơn song song không deadlock), gọi `StockDeduction.Apply`, add movements, `Raise` sự kiện qua entity → outbox. Không `SaveChanges` (host lo). `ref_id = OrderId`. Đăng ký consumer trong `DependencyInjection`. → kiểm chứng: `StockDeductionTests` xanh (cả 5 ca B-phần); đột biến: bỏ inbox check → `DuplicateEvent` vẫn xanh nhờ unique (ghi nhận: đó là lớp 2), bỏ **cả** unique → đỏ.
+- [ ] **B4** API: `GET /api/inventory/ingredients` → `[{ id, name, unit, onHand, lowThreshold, isLow }]` sắp theo tên; `POST …/{id}/restock` → movement `restock` (`ref_id` = id mới), cộng `on_hand`, có thể phát `AvailabilityChanged(true)`, trả nguyên liệu sau khi nhập; 404 "Không tìm thấy nguyên liệu."; xung đột `xmin` → 409 như lát A. → kiểm chứng: `Restock_RaisesAvailabilityWhenBackAboveThreshold`, `Ingredients_RequiresOwner` xanh.
+- [ ] **B5** Ordering: `AvailabilityConsumer` (+ `AfterCommitAsync` xoá cache, `Clients.All "menuChanged"`), đăng ký. → kiểm chứng: `AvailabilityProjectionTests` xanh; đột biến chuyển xoá cache vào `HandleAsync` **trước** commit + chèn một `GET /api/menu` giữa handler và commit (qua hook test) → ca "không trả dữ liệu cũ" đỏ. Nếu không dựng được hook chen giữa gọn gàng, ghi rõ vào đây là nguy cơ #1 chỉ được bảo vệ bằng thiết kế + review.
+- [ ] **B6** Gateway route + `/healthz`; compose (1a). → kiểm chứng: `GatewayTests` xanh; `docker compose up -d --build --wait` → 9 container healthy; `curl` qua 8080 token owner `GET /api/inventory/ingredients` → 200, token cashier → 403.
+- [ ] **B7** Seeder (1b). → kiểm chứng: `SeederTests` xanh; seed hai lần cùng output; sau seed, `GET /api/menu` có "Bánh flan" `isAvailable:false` **và** `GET /api/inventory/ingredients` có trứng `isLow:true`.
 
 ### Nhóm W — Web (worktree riêng, xem mục 3)
 
-- [x] **W1** `apiClient`: `idempotencyKey?: string` → header `Idempotency-Key`; retry sau refresh 401 dùng **cùng** key. → kiểm chứng: `apiClient.test.ts` ca mới xanh, đỏ khi retry không kèm header.
-- [x] **W2** Thu tiền: `usePayOrder` (key tạo lúc mở form, giữ tới khi thành công hoặc đóng form; `onSuccess` invalidate `orders`), `PaymentForm` inline trong thẻ đơn, `Receipt` giữ ở `OrderPanel` từ `pay.data` (đơn biến khỏi danh sách vẫn thấy biên nhận, tới khi bấm "Đơn mới"), 409 → toast đúng `detail` + refetch đơn, offline → nút disabled. POS lấy `?active=true`. → kiểm chứng: `npm --prefix web run build` + vitest xanh; `paymentSchemas.test.ts`.
-- [x] **W3** `CloseShiftForm` + `useCloseShift` gửi body, parse Zod; cảnh báo "Còn {n} đơn chưa thu tiền" khi có đơn Open (vẫn cho đóng). → kiểm chứng: vitest; xem tay trên dev server.
+- [ ] **W1** `npm i @tanstack/react-table` (ghim đúng version như các gói TanStack khác). `schemas.ts` (Zod cho phản hồi + search), `useIngredients`, `queryKeys`. → kiểm chứng: `npm run sdlc:evals` P04 xanh; vitest `inventorySchemas.test.ts` (search `filter=xyz` → về `all`, không ném).
+- [ ] **W2** `IngredientTable` + route `/inventory` + nav Owner + restock inline. → kiểm chứng: vitest cho highlight (`isLow` → class/badge, tồn âm → đỏ), trạng thái rỗng; `npm --prefix web run build` xanh.
+- [ ] **W3** `signalr.ts` `menuChanged` → invalidate menu. → kiểm chứng: vitest với hub giả: phát `menuChanged` → `invalidateQueries` được gọi với key menu.
 
 ### Nhóm I — Tích hợp (sau khi gộp W)
 
-- [x] **I1** Gộp nhánh web; `docker compose down -v && docker compose up -d --build && npm --prefix backend run seed`; viết `order-to-payment.spec.ts` (mục 0), sửa `helpers.ts`. Biến thể 20 phần: bấm vòng tròn các món còn hàng tới 20 phần, ≥ 10 dòng; "Gửi bếp" → "Thu tiền" → "Tiền mặt" → đo `performance.now()` từ bấm "Xác nhận thu" tới `Receipt` hiện, **< 2000ms**, ghi `b-latency.log`. → kiểm chứng: `npx playwright test` xanh 3 lần liên tiếp, log có 3 mốc. _Thực tế: 5/5 × 3 lần; `b-latency.log` 949 / 337 / 201ms._
-- [x] **I2** Chụp 6 ảnh ở mục 0 bằng Playwright. → kiểm chứng: 6 file tồn tại, `b-total-mismatch-409.png` có câu "Đơn vừa thay đổi…". _Chụp bằng spec tạm (không commit), `animations: 'disabled'` để toast/nút không bị chụp giữa transition; 409 thật do tab hai huỷ một món (hub của tab một bị chặn để giữ tổng cũ)._
-- [x] **I3** Tài liệu 1a + `CHANGELOG.md` + README (JD: Idempotency, gRPC). → kiểm chứng: `grep -n "Idempotency\|gRPC" README.md` có dòng ở bảng JD.
-- [x] **I4** `npm run sdlc:verify -- --all --e2e` → `docs/evidence/01-260925-fnb-pos-core/verify-slice-b.log`. _Thực tế: lần đầu `web:test` đỏ vì 6 worker vitest quá hạn 60s lúc khởi động ngay sau Testcontainers (không test nào chạy; chạy riêng 16/16 xanh); chạy lại toàn bộ: 8/8 cổng xanh, 119 test._
+- [ ] **I1** `docker compose down -v && docker compose up -d --build --wait && npm --prefix backend run seed`; viết `stock-deduction.spec.ts` (mục 0). So **chênh lệch** tồn trước/sau chứ không so số tuyệt đối (seed + OrderPaid lịch sử làm số tuyệt đối không ổn định — nguy cơ #6). Poll `/inventory` tối đa 10s. → kiểm chứng: `npx playwright test` xanh 3 lần liên tiếp (restock cuối spec giữ cho lần sau đúng); `order-to-payment`, `order-to-kitchen`, `offline-banner` vẫn xanh.
+- [ ] **I2** Chụp 5 ảnh ở mục 0. → kiểm chứng: 5 file tồn tại; `c-pos-sold-out.png` thấy ≥ 1 badge "Hết" ngoài "Bánh flan".
+- [ ] **I3** `requiredTests` += `StockDeductionTests.cs`; tài liệu 1a + `CHANGELOG.md` + README. → kiểm chứng: `npm run sdlc:evals` E05 xanh; `grep -n "Saga" README.md` trỏ tới `StockDeductionTests.cs`.
+- [ ] **I4** `npm run sdlc:verify -- --all --e2e` → `docs/evidence/01-260925-fnb-pos-core/verify-slice-c.log`. → kiểm chứng: mọi cổng xanh.
 
 ## 3. Thứ tự & song song hoá
 
 | Nhóm | Các bước | Có thể chạy song song? | Worktree |
 |------|----------|------------------------|----------|
-| B0 | B0.1–B0.2 | không — làm trước | chính (`feat/01-260925-fnb-pos-core-slice-b`) |
-| B | B1→B2→B3→B4 (ordering) rồi B5→B6→B7→B8 (cashier cần proto ở B3) | **có**, song song với W | chính |
-| W | W1→W2→W3 | **có** — chỉ chạm `web/`, xây theo hợp đồng spec §4 + mục 2 plan này, test với fetch giả | `../sdlc-fnb-microservices-cv-web`, nhánh `feat/01-260925-fnb-pos-core-slice-b-web` |
+| C0 | C1→C2→C3 | không — làm trước | chính (`feat/01-260925-fnb-pos-core-slice-c`) |
+| B | B1→B2→B3→B4 (inventory), B5 (ordering, cần C2), B6→B7 | **có**, song song với W | chính |
+| W | W1→W2→W3 | **có** — chỉ chạm `web/`, xây theo hợp đồng `GET /api/inventory/ingredients` ở B4 + fetch giả | `../sdlc-fnb-microservices-cv-web`, nhánh `feat/01-260925-fnb-pos-core-slice-c-web` |
 | I | I1→I4 | không | chính, sau khi merge W |
 
 ```bash
-# sau B0.2, từ gốc repo:
-git worktree add ../sdlc-fnb-microservices-cv-web -b feat/01-260925-fnb-pos-core-slice-b-web
+# sau C3, từ gốc repo:
+git worktree add ../sdlc-fnb-microservices-cv-web -b feat/01-260925-fnb-pos-core-slice-c-web
 # khi W xong, từ worktree chính:
-git merge --no-ff feat/01-260925-fnb-pos-core-slice-b-web && git worktree remove ../sdlc-fnb-microservices-cv-web
+git merge --no-ff feat/01-260925-fnb-pos-core-slice-c-web && git worktree remove ../sdlc-fnb-microservices-cv-web
 ```
 
 W không chạm `sdlc.config.json`, `docker-compose.yml`, `web/e2e/**` — e2e thuộc I.
 
 ## 4. Ràng buộc kế thừa từ AGENTS.md và spec
 
-Mọi luật ở §4 của `plan-slice-a.md` vẫn áp dụng (FallbackPolicy, `record` + DataAnnotations,
-ProblemDetails tiếng Việt, `decimal(18,2)`, secret từ env, CORS allowlist, web chỉ gọi qua
-`apiClient.ts`, không `any`/`@ts-ignore`, test cùng commit, `[Trait("Category","Integration")]`).
-Riêng lát B:
+Mọi luật ở §4 của `plan-slice-a.md` và `plan-slice-b.md` vẫn áp dụng (FallbackPolicy, `record` +
+DataAnnotations, ProblemDetails tiếng Việt, `decimal`, secret từ env, CORS allowlist, web chỉ gọi qua
+`apiClient.ts`, không `any`/`@ts-ignore`, test cùng commit, `[Trait("Category","Integration")]`,
+migration + seed chỉ khi `ASPNETCORE_ENVIRONMENT=Development`). Riêng lát C:
 
-- **Không log `Idempotency-Key`** (spec §8) — kể cả trong message lỗi 400. Log request của cashier
-  giữ ở mức hiện tại (không log header).
-- Endpoint gRPC có `[Authorize(Roles = "Cashier,Owner")]`; **không** thêm `[AllowAnonymous]`
-  (eval P02). Cổng 8092 không publish ra host, gateway không có route tới nó.
-- Tiền qua gRPC là `string` invariant-culture; **cấm** `double`/`float` trong `.proto`.
-- Migration **chỉ thêm** (cột nullable, bảng mới) — deploy giữa ca không làm hỏng đơn đang mở.
-- Thông báo lỗi: đúng câu chữ spec §4; câu mới (đơn đã huỷ, 503) ghi vào `endpoints.md`.
-- Seeder và auto-migrate vẫn chỉ khi `ASPNETCORE_ENVIRONMENT=Development`.
-- **Không tự ý thêm dependency** ngoài bảng dưới + các bảng ở `plan-slice-a.md`. Cần thêm → dừng, hỏi, thêm dòng bảng rồi mới cài (ca C03, eval P04).
+- **Không rollback đơn đã thu** khi thiếu kho (spec §5) — cho tồn âm + `oversold` + `StockDeductionFailed`. Không ai "sửa" thành ném lỗi.
+- **Không dịch vụ nào đọc DB của dịch vụ khác.** Inventory biết món qua `MenuItemId` trong sự kiện; ordering biết hết hàng qua sự kiện. Ngoại lệ duy nhất: **seeder** (công cụ dev) đọc id món ở `fnb_ordering` để ghép công thức — giống cách nó đã ghi nhiều DB từ lát A.
+- `is_available` ở ordering vẫn **chỉ** do sự kiện (và seeder dev) đổi, không có endpoint sửa tay (spec §3).
+- `on_hand`, `qty_per_unit`, `low_threshold` là `numeric(18,3)`; không `double`.
+- Thay đổi `Shared.Messaging` phải **tương thích ngược**: handler cũ không sửa dòng nào.
+- Cổng 8084 không publish ra host; chỉ đi qua gateway.
+- **Không tự ý thêm dependency** ngoài bảng dưới + bảng của `plan-slice-a.md` / `plan-slice-b.md`. Cần thêm → dừng, hỏi, thêm dòng bảng rồi mới cài (ca C03, eval P04).
 
-### Dependency xin duyệt cho lát B
+### Dependency xin duyệt cho lát C
 
 | Nơi | Gói | Lý do |
 |-----|-----|-------|
-| backend (`Ordering.Api`) | `Grpc.AspNetCore` | server gRPC `MarkPaid` — có trong spec §8 |
-| backend (`Cashier.Infrastructure`) | `Grpc.Net.ClientFactory` | client gRPC qua `IHttpClientFactory`, gắn `DelegatingHandler` chuyển JWT — có trong spec §8 |
-| backend (`Cashier.Infrastructure`, test ordering) | `Grpc.Tools` | sinh code C# từ `.proto` lúc build (`PrivateAssets=all`, không vào runtime). **Không có trong spec §8** — `Grpc.AspNetCore` kéo nó theo cho server, nhưng phía client phải tham chiếu trực tiếp |
-| backend (`Cashier.Infrastructure`) | `Google.Protobuf` | runtime của message sinh ra phía client. **Không có trong spec §8** — cùng lý do trên |
+| web | `@tanstack/react-table` | **đã duyệt** ở `plan-slice-a.md` §4 (spec §6/§8: `IngredientTable` dùng TanStack Table); lát C mới cài |
+| backend | — | không gói mới: Inventory dùng đúng các gói Cashier đang dùng (EF Core Npgsql, Confluent.Kafka qua `Shared.Messaging`, JwtBearer) |
 
-Không cài `Grpc.AspNetCore.Web`, `Grpc.HealthCheck`, `Polly`/`Microsoft.Extensions.Http.Resilience`
-(retry nằm ở người dùng bấm lại cùng key, không retry ngầm), `MediatR`. Web **không** thêm gói
-nào (`crypto.randomUUID()` có sẵn; form thu tiền inline, không cần dialog của radix).
+Không cài: `MassTransit`/`NServiceBus`/thư viện saga (saga ở đây là choreography hai sự kiện, inbox +
+outbox đã có), `Polly`, thư viện toast/dialog mới cho web.
 
 ## 5. Tự chất vấn (bắt buộc — do Agent điền)
 
 > Người điều phối hỏi: *"Thay đổi nào trong kế hoạch này có nguy cơ làm hỏng hệ thống
 > hoặc xung đột với tính năng hiện có?"*
 
-Bằng chứng tìm được khi đọc `Order.cs`, `OrderService.cs`, `OrdersController.cs`, `Shift.cs`,
-`CloseShiftHandler.cs`, `ShiftRepository.cs`, `ShiftEventsConsumer.cs`, `DemoData.cs`,
-`useShift.ts`, `ShiftBar.tsx`, `apiClient.ts`, `docker-compose.yml`:
+Bằng chứng tìm được khi đọc `KafkaConsumerHost.cs`, `OutboxInterceptor.cs`, `IntegrationEvent.cs`,
+`MenuCatalog.cs`, `MenuItem.cs`, `Order.cs`, `OrdersHub.cs`, `ShiftEventsConsumer.cs`,
+`ShiftProjectionTests.cs`, `DemoData.cs`, `Gateway/Program.cs`, `docker-compose.yml`,
+`docs/database/schema.md`, `.github/workflows/ci.yml`, `web/Dockerfile`:
 
 | # | Nguy cơ | Vì sao có thể xảy ra | Cách phòng | Test nào bắt được |
 |---|---------|----------------------|------------|-------------------|
-| 1 | **Mất phản hồi gRPC**: ordering đã `Paid` nhưng cashier timeout → rollback, không có bút toán | Mạng / deadline 3s | `paymentId = Idempotency-Key`; POS bấm lại **cùng** key → `MarkPaid` thấy cùng `paymentId` → `Ok` → ghi bút toán. **Trần:** người dùng bỏ ngang không bấm lại → đơn Paid bên ordering, không có dòng `payments`. Lát D đối chiếu `OrderPaid` với payments để phát hiện | `Payments_LostReply_RetrySameKeyCompletes`, `MarkPaid_SamePaymentIdTwice_IsIdempotent` |
-| 2 | **Transaction cashier mở trong lúc gọi gRPC** giữ khoá key + `FOR SHARE` ca | Thiết kế một transaction | Deadline 3s cứng; lỗi → rollback, không lưu phản hồi lỗi để bấm lại được | `Payments_OrderingUnavailable_Returns503_NoLedgerEntry` |
-| 3 | **Bếp và thu tiền ghi cùng dòng `orders`** → xmin đổi → `MarkPaid` thất bại oan dù tổng tiền không đổi | `SetItemStatus` và `MarkPaid` cùng lưu `orders` (spec §4 nói rõ) | Retry ≤ 3 lần, **đọc lại và kiểm lại tổng** mỗi lần | `MarkPaid_WhileKitchenUpdates_RetriesAndSucceeds` (xung đột ép bằng interceptor) |
-| 4 | **Đơn Paid biến mất khỏi bếp**: `/api/kitchen/orders` lọc `Status == Open`, `OpenItem()` ném lỗi khi đơn không Open → thu tiền trước khi pha xong thì bếp không thấy và không bấm được | Code lát A giả định chỉ Open mới cần bếp | Scope Active; `SetItemStatus` cho phép khi Paid | `Kitchen_PaidOrderWithPendingItems_StillVisible`, `OrderTests` |
-| 5 | **Thu tiền chen giữa lúc đóng ca** → bút toán rơi vào ca đã chốt, lệch tiền | Hai request khác endpoint | Payment `FOR SHARE` ca mở; đóng ca `FOR UPDATE` → tuần tự hoá | `CloseShift_ConcurrentWithPayments_NoPaymentAfterClose` |
-| 6 | **Đổi hợp đồng `close`** (thêm body bắt buộc) làm vỡ `ShiftBar`, `ShiftTests` (gửi `null`), seeder (`yesterday.Close(now)`), unit test | Lời gọi tìm bằng grep: `ShiftTests.cs:78,79,91`, `DemoData.cs:106`, `Cashier.UnitTests/ShiftTests.cs:36,47,58,60`, `useShift.ts:52` | Cập nhật cả 4 nơi trong cùng bước (B6, B8, W3); kỳ vọng cũ (409 khi đóng hai lần, 404) **giữ nguyên** — đây là đổi hợp đồng theo spec §4, không phải nới test | `ShiftTests` (cũ + mới), `SeederTests` |
-| 7 | **h2c và HTTP/1.1 chung Kestrel**: gRPC cần HTTP/2 không TLS; cấu hình `Kestrel__Endpoints` **ghi đè** `ASPNETCORE_HTTP_PORTS` → healthcheck có thể hỏng | Kestrel ưu tiên endpoints tường minh | Endpoint `Http` giữ đúng 8082 (khớp biến healthcheck); gRPC riêng 8092 `Http2` | Kiểm chứng B7 (8 container healthy) + e2e thu tiền qua compose |
-| 8 | **gRPC bị `FallbackPolicy` chặn** (401) vì cashier gọi không kèm token | Lát A bắt đăng nhập mặc định | `ForwardAuthHandler` chuyển JWT người gọi; không nới policy | `MarkPaid_WithoutToken_Unauthenticated` + e2e |
-| 9 | **Số thập phân qua protobuf / so hash**: `double` mất chính xác; `45000` vs `45000.00` ra hash khác → 422 oan | Protobuf không có decimal | Tiền là string invariant; hash dùng `"0.00"` | `MarkPaid_TotalWithDifferentScale_Matches`, `Payments_SameKeyDifferentBody_Returns422` |
-| 10 | **Deploy giữa ca**: migration đổi schema dưới chân đơn đang mở; `ShiftClosed` thêm trường làm vỡ consumer ordering | Ordering có bản sao record `ShiftClosed` riêng (`ShiftEventsConsumer.cs:17`) | Migration chỉ thêm cột nullable; System.Text.Json bỏ qua trường lạ → consumer cũ đọc được | Kiểm chứng B2 (script không có DROP) + `ShiftProjectionTests` |
-| 11 | **Lộ `Idempotency-Key` trong log** | Log lỗi 400 dễ in giá trị header | Log chỉ ghi lý do ("thiếu"/"không phải UUID") | Rà ở `/sdlc:ship` + grep `docker compose logs cashier` sau e2e không có key |
-| 12 | **Hai key khác nhau cho cùng đơn** (hai máy POS) → thu hai lần | Idempotency theo key, không theo đơn | Ordering chỉ nhận một `paymentId` (AlreadyPaid); index partial `(order_id) WHERE Completed` chặn lần hai ở DB | `Payments_TwoKeysSameOrder_OnlyOneCompleted`, `MarkPaid_ConcurrentDifferentPayments_OnlyOneWins` |
+| 1 | **POS thấy món còn hàng dù đã hết** — xoá cache `menu:v1` **trước** commit, một `GET /api/menu` chen vào đọc DB cũ rồi cache lại 60s | `IIntegrationEventHandler` hiện chỉ có `HandleAsync` chạy **trong** transaction (`KafkaConsumerHost.cs:16`) | Hook `AfterCommitAsync` chạy sau `tx.CommitAsync`; SignalR cũng sau commit | `AvailabilityProjectionTests` (B5, kèm đột biến) |
+| 2 | **Trừ kho hai lần** khi inventory chết giữa đường / Kafka giao lại | At-least-once; offset commit sau tx | Hai lớp: inbox `message_id` + unique `(reason, ref_id, ingredient_id)` | `StockDeduction_DuplicateEvent_DeductsOnce` |
+| 3 | **Thiếu kho làm kẹt consumer** — ném lỗi → không commit offset → thử lại mãi, mọi đơn sau bị chặn | Phản xạ "không đủ thì throw" | Oversold là **nhánh nghiệp vụ**, không phải lỗi | `StockDeduction_Oversold_GoesNegative_PublishesFailed` |
+| 4 | **Món không có công thức / `MenuItemId` lạ** (món mới thêm sau seed) → NullReference → kẹt consumer như #3 | Công thức chỉ có cho 20 món seed | Bỏ qua dòng không có công thức, log mức Information (không log gì nhạy cảm) | `StockDeduction_ItemWithoutRecipe_IsSkipped` |
+| 5 | **Đổi `Shared.Messaging` làm vỡ consumer hiện có** (ca ở ordering, inbox) | Interface dùng chung | Default interface method — handler cũ không đổi; hook chỉ chạy khi xử lý thật (không chạy khi trùng) | `InboxDedupTests`, `ShiftProjectionTests` không sửa vẫn xanh (C2) |
+| 6 | **Deploy giữa ca: backlog `OrderPaid` từ lát B** — inventory khởi động lần đầu với `AutoOffsetReset.Earliest` (`KafkaConsumerHost.cs:44`) → trừ kho cho **mọi** đơn đã thu trước đó, kể cả 6 đơn seed hôm qua | Group `inventory` mới, chưa có offset | Chấp nhận có chủ đích: tồn phản ánh đúng mọi đơn đã bán (đúng nghiệp vụ). Seed tồn đủ lớn; e2e so **chênh lệch**, không so tuyệt đối | I1 chạy trên stack `down -v` + seed; ghi vào `endpoints.md`/CHANGELOG Notes |
+| 7 | **Seeder và inventory lệch nhau về "Bánh flan"** — lát A/B gán tay `SetAvailable(false)`; nếu giữ thì restock trứng không bật lại được flan (không có sự kiện true vì trứng chưa từng "qua ngưỡng xuống") | `DemoData.cs:33,91` | Bỏ `SoldOut` gán tay; seeder tính `is_available` từ cùng quy tắc `IsLow` của inventory | `SeederTests` (B7) + restock trứng trên UI → flan có lại (xem tay lúc I2) |
+| 8 | **Hai đơn song song cùng nguyên liệu** → lost update `on_hand` hoặc deadlock | Consumer 3 partition, key = `OrderId` → đơn khác nhau chạy song song ở instance khác | `FOR UPDATE` các dòng `ingredients` **theo thứ tự id**; `xmin` là lưới thứ hai → lỗi thì không commit offset, thử lại | Ca thêm trong `StockDeductionTests`: 2 `OrderPaid` khác nhau gọi `ProcessAsync` song song → `on_hand` trừ đủ cả hai |
+| 9 | **Thứ tự sự kiện bật/tắt một món bị đảo** (tắt rồi bật đến ngược) | Nhiều partition | `PartitionKey = MenuItemId` → cùng món cùng partition, giữ thứ tự | Thiết kế; `RecipeTests` kiểm key |
+| 10 | **`/healthz` gateway đỏ vì inventory** → nginx/web coi cả hệ thống mất kết nối, banner offline trên POS dù bán vẫn được | `/healthz` gộp mọi dịch vụ | Chấp nhận: đúng hợp đồng lát A (gộp). Ghi nhận ở README; nếu muốn "inventory chết vẫn bán" không hiện banner thì đổi hợp đồng ở lát sau | `GatewayTests` + e2e `offline-banner` vẫn xanh |
+| 11 | **`schema.md` nói "hoàn kho khi huỷ đơn"** — người build sau đọc và thêm consumer `OrderCancelled` trừ ngược kho chưa từng trừ | Dòng 53–54 lệch spec | Sửa tài liệu trong lát này | Review diff |
+| 12 | **CI chạy toolchain khác local** (lỗi thật của lát B) — verify local xanh, CI đỏ | `ci.yml` Node 20 vs `web/Dockerfile` Node 24 | P05 máy kiểm; C04 bắt ship phải xem run CI thật | P05 (đột biến ở C1) |
+| 13 | **`routeTree.gen.ts`** bị commit kèm thay đổi CRLF không liên quan | `core.autocrlf=true`, file đang `M` trên main | Chỉ stage khi thêm route; `git diff --ignore-cr-at-eol` phải chỉ có dòng route | Review diff |
 
-**Tính năng hiện có có thể bị ảnh hưởng:** bảng bếp (lọc Active), danh sách đơn POS (đổi query
-sang `?active=true`), đóng ca (hợp đồng mới), seeder (chuỗi tổng kết, `SeederTests`, README),
-projection ca ở ordering (sự kiện `ShiftClosed` thêm trường), `ConcurrencyTests` (xmin — không
-đổi kỳ vọng), gateway (route mới).
+**Tính năng hiện có có thể bị ảnh hưởng:** mọi Kafka consumer (Shared.Messaging), thực đơn POS
+(cache + badge "Hết"), seeder (chuỗi tổng kết, `SeederTests`, README), gateway (route, `/healthz`),
+compose (container thứ 9, thời gian `--wait`), e2e hiện có (món nào hết hàng sau spec mới).
 
-**Nếu phải quay đầu:** `git revert` dải commit của lát. Migration chỉ thêm → DB dev có thể giữ
-nguyên hoặc `docker compose down -v`. Không có dữ liệu thật (Seeder/auto-migrate chặn ngoài
-Development).
+**Nếu phải quay đầu:** `git revert` dải commit của lát. Inventory là DB riêng — bỏ service là xong;
+ordering chỉ thêm consumer, cột `is_available` đã có từ lát A. Không có dữ liệu thật.
 
 ## 6. Điều KHÔNG làm trong lần này
 
-- Tồn kho, trừ kho theo `OrderPaid`, cờ hết hàng do sự kiện — **lát C** (lát B chỉ **phát** `OrderPaid`).
-- `reporting`, màn báo cáo, URL state, phát hiện đơn Paid không có bút toán (nguy cơ #1) — **lát D**.
-- Sự kiện Kafka riêng cho payment (spec §5 ghi "ghi outbox" ở cashier nhưng §4 không có topic
-  nào của payment; lát D lấy tổng tiền theo phương thức từ `ShiftClosed` đã thêm trường).
-- Hoàn tiền, huỷ thanh toán, thanh toán một phần / tách bill, cổng thanh toán thật, in hoá đơn.
-- Chặn đóng ca phía server khi còn đơn Open (chỉ cảnh báo ở UI).
-- POS xem đơn của ca khác; nhập quỹ đầu ca trên UI (vẫn `0`).
-- Retry ngầm phía server khi gọi gRPC (retry là người dùng bấm lại cùng key).
+- `reporting`, tiêu thụ `StockDeductionFailed`, màn báo cáo — **lát D** (lát C chỉ **phát** sự kiện).
+- Hoàn kho khi huỷ đơn (đơn chỉ trừ kho khi `Paid`; đơn Paid không huỷ được).
+- CRUD nguyên liệu / công thức trên UI, đơn vị quy đổi, nhà cung cấp, phiếu nhập có giá.
+- Chặn gọi món **trước** khi thanh toán dựa trên tồn thực (POS chỉ tin cờ `is_available`) — đó là đặt chỗ tồn, không có trong spec.
+- Tự bật lại món khi restock mà món còn nguyên liệu khác đang low (vẫn tắt tới khi mọi nguyên liệu đủ).
+- Thư viện saga/orchestrator.
 
 ---
 
 ## Duyệt của người điều phối
 
 > _Chốt chặn con người thứ hai. Đọc mục 5 trước tiên._
-> _Đồng ý → tick đủ các ô và chạy `/sdlc:build 01-260925-fnb-pos-core`._
+> _Đồng ý → tick đủ các ô, đổi `status: planned` rồi chạy `/sdlc:build 01-260925-fnb-pos-core`._
 
-- [x] Tôi đã đọc mục 5 và các nguy cơ là chấp nhận được
-- [x] Bằng chứng thành công ở mục 0 là đủ để tôi tin tính năng chạy đúng
-- [x] Danh sách dependency ở mục 4 được duyệt (đặc biệt `Grpc.Tools`, `Google.Protobuf` — không có trong spec §8)
+- [ ] Tôi đã đọc mục 5 và các nguy cơ là chấp nhận được
+- [ ] Bằng chứng thành công ở mục 0 là đủ để tôi tin tính năng chạy đúng
+- [ ] Chấp nhận hai điểm lệch/bổ sung so với spec: **(a)** thêm `POST /api/inventory/ingredients/{id}/restock` (spec §4 chỉ có `GET`) — cần để bật lại món và để e2e lặp lại được; **(b)** "dưới ngưỡng ⇒ hết hàng" (intent #7) thay vì "không đủ làm một phần"
