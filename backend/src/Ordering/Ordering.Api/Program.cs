@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Ordering.Api;
+using Ordering.Api.Grpc;
 using Ordering.Api.Hubs;
 using Ordering.Application;
 using Ordering.Infrastructure;
@@ -16,6 +17,7 @@ builder.Services.AddFnbControllers()
     .AddMvcOptions(o => o.Filters.Add<ETagFilter>())
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddSignalR();
+builder.Services.AddGrpc();
 builder.Services.AddOrderingInfrastructure(builder.Configuration);
 builder.Services.AddScoped<IOrderNotifier, SignalROrderNotifier>();
 
@@ -33,6 +35,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<OrdersHub>("/hubs/orders");
+
+// gRPC cần HTTP/2 nên chỉ dùng được qua endpoint 8092 (không publish ra host); gateway không có route tới.
+app.MapGrpcService<OrderPaymentsService>();
 app.MapHealthz();
 
 app.Run();

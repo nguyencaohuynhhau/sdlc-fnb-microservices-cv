@@ -6,11 +6,11 @@ import { OrderSchema, type DraftOrder, type Order } from './orderSchemas'
 
 const parseOrder = async (p: Promise<unknown>) => OrderSchema.parse(await p)
 
-/** Đơn đang mở của ca hiện hành (server lọc theo ca), mới nhất trước. */
-export function useOpenOrders(shiftId: string | undefined) {
+/** Đơn còn việc của ca hiện hành: chưa thu, hoặc đã thu mà bếp chưa làm xong (server lọc theo ca), mới nhất trước. */
+export function useActiveOrders(shiftId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.orders.list(shiftId ?? ''),
-    queryFn: async () => z.array(OrderSchema).parse(await api('/api/orders?status=Open')),
+    queryFn: async () => z.array(OrderSchema).parse(await api('/api/orders?active=true')),
     enabled: !!shiftId,
   })
 }

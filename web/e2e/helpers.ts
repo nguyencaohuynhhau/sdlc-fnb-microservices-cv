@@ -20,5 +20,12 @@ export async function ensureShiftOpen(page: Page) {
   await expect(bar).not.toContainText('Đang đồng bộ ca…', { timeout: 10_000 })
 }
 
+/** Chờ tới khi trang đã vào group SignalR của ca (JoinShift trả kết quả qua WebSocket). */
+export function hubJoined(page: Page) {
+  return page
+    .waitForEvent('websocket', (ws) => ws.url().includes('/hubs/orders'))
+    .then((ws) => ws.waitForEvent('framereceived', (f) => String(f.payload).includes('"type":3')))
+}
+
 export const availableMenuItems = (page: Page) =>
   page.getByRole('list', { name: 'Thực đơn' }).getByRole('button', { disabled: false })

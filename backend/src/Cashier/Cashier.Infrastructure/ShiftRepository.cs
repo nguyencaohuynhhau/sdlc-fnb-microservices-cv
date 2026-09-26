@@ -11,6 +11,9 @@ public sealed class ShiftRepository(CashierDbContext db) : IShiftRepository
 
     public Task<Shift?> FindAsync(Guid id, CancellationToken ct) => db.Shifts.FindAsync([id], ct).AsTask();
 
+    public Task<Shift?> LockAsync(Guid id, CancellationToken ct) =>
+        db.Shifts.FromSql($"SELECT *, xmin FROM shifts WHERE id = {id} FOR UPDATE").SingleOrDefaultAsync(ct);
+
     public void Add(Shift shift) => db.Shifts.Add(shift);
 
     public async Task<bool> TrySaveAsync(CancellationToken ct)

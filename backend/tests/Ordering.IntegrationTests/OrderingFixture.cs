@@ -98,7 +98,13 @@ public sealed class OrderingFixture : IAsyncLifetime
     /// <summary>HttpClient mang access token hợp lệ của một vai trò — thay cho việc gọi identity.</summary>
     public HttpClient ClientAs(string role)
     {
-        var token = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+        var client = Factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TokenFor(role));
+        return client;
+    }
+
+    public static string TokenFor(string role) =>
+        new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Issuer = JwtSettings.Issuer,
             Audience = JwtSettings.Audience,
@@ -112,10 +118,6 @@ public sealed class OrderingFixture : IAsyncLifetime
                 new Claim(JwtSettings.RoleClaim, role),
             ]),
         });
-        var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client;
-    }
 
     public async Task DisposeAsync()
     {

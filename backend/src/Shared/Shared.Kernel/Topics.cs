@@ -6,4 +6,5 @@ public static class Topics
     public const string ShiftOpened = "fnb.cashier.shift-opened.v1";
     public const string ShiftClosed = "fnb.cashier.shift-closed.v1";
     public const string OrderCancelled = "fnb.ordering.order-cancelled.v1";
+    public const string OrderPaid = "fnb.ordering.order-paid.v1";
 }

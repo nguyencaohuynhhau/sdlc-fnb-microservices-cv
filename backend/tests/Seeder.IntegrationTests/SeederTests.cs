@@ -1,3 +1,4 @@
+using Cashier.Domain;
 using Cashier.Infrastructure;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +30,7 @@ public sealed class SeederTests(PostgresFixture fx) : IClassFixture<PostgresFixt
         var first = await DemoData.SeedAsync(Conn, "demo-password", DateTimeOffset.UtcNow);
         var second = await DemoData.SeedAsync(Conn, "demo-password", DateTimeOffset.UtcNow.AddMinutes(5));
 
-        first.Should().Be("Seeded: 3 users, 20 menu items, 1 closed shift, 1 open shift, 3 open orders");
+        first.Should().Be("Seeded: 3 users, 20 menu items, 1 closed shift, 1 open shift, 3 open orders, 6 paid orders");
         second.Should().Be(first);
     }
 
@@ -48,10 +49,28 @@ public sealed class SeederTests(PostgresFixture fx) : IClassFixture<PostgresFixt
         (await ordering.MenuItems.SingleAsync(m => m.Name == "Bánh flan")).IsAvailable.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task YesterdayShift_ReconciledAgainstItsPayments()
+    {
+        await DemoData.SeedAsync(Conn, "demo-password", DateTimeOffset.UtcNow);
+
+        await using var cashier = new CashierDbContext(new DbContextOptionsBuilder<CashierDbContext>().UseNpgsql(Conn("fnb_cashier")).Options);
+        await using var ordering = new OrderingDbContext(new DbContextOptionsBuilder<OrderingDbContext>().UseNpgsql(Conn("fnb_ordering")).Options);
+        var closed = await cashier.Shifts.SingleAsync(s => s.ClosedAt != null);
+        var payments = await cashier.Payments.Where(p => p.ShiftId == closed.Id).ToListAsync();
+        var paidOrders = await ordering.Orders.Where(o => o.ShiftId == closed.Id && o.Status == OrderStatus.Paid).ToListAsync();
+
+        payments.Should().HaveCount(6);
+        payments.Select(p => (p.OrderId, p.Id, p.Amount)).Should().BeEquivalentTo(paidOrders.Select(o => (o.Id, o.PaidPaymentId!.Value, o.Total)));
+        var cash = payments.Where(p => p.Method == PaymentMethod.Cash).Sum(p => p.Amount);
+        closed.ExpectedCash.Should().Be(closed.OpeningFloat + cash);
+        closed.Variance.Should().Be(-2_000m);
+    }
+
     /// <summary>Tiền là decimal(18,2) ở DB (spec §3) — soi schema sau migrate, bắt cả cấu hình EF lẫn migration thiếu.</summary>
     [Theory]
     [InlineData("fnb_ordering", 3)]
-    [InlineData("fnb_cashier", 4)]
+    [InlineData("fnb_cashier", 5)] // + payments.amount (lát B)
     public async Task MoneyColumns_AreNumeric18_2(string db, int moneyColumns)
     {
         await DemoData.SeedAsync(Conn, "demo-password", DateTimeOffset.UtcNow);

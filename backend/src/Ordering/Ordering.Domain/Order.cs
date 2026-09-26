@@ -9,6 +9,15 @@ public enum OrderStatus
     Cancelled,
 }
 
+/// <summary>Kết quả thu tiền theo góc nhìn của đơn (hợp đồng gRPC <c>MarkPaid</c>).</summary>
+public enum MarkPaidOutcome
+{
+    Ok,
+    TotalMismatch,
+    AlreadyPaid,
+    OrderCancelled,
+}
+
 public enum OrderItemStatus
 {
     Pending,
@@ -52,6 +61,11 @@ public sealed class Order : Entity
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    public DateTimeOffset? PaidAt { get; private set; }
+
+    /// <summary>Payment đã thu đơn này — gọi lại với cùng id thì coi như đã xong (idempotent).</summary>
+    public Guid? PaidPaymentId { get; private set; }
 
     /// <summary>Phiên bản dòng (xmin) — client gửi lại qua <c>If-Match</c>.</summary>
     public uint Version { get; private set; }
@@ -102,7 +116,13 @@ public sealed class Order : Entity
     /// <summary>Bếp đổi trạng thái món, đúng thứ tự Chờ → Đang làm → Xong, không nhảy cóc, không lùi.</summary>
     public void SetItemStatus(Guid itemId, OrderItemStatus target, DateTimeOffset now)
     {
-        var item = OpenItem(itemId);
+        // Khách trả tiền trước khi bếp làm xong là chuyện thường — đơn Paid bếp vẫn phải bấm được.
+        if (Status == OrderStatus.Cancelled)
+        {
+            throw new DomainException(ClosedMessage);
+        }
+
+        var item = FindItem(itemId);
         if ((item.Status, target) is not ((OrderItemStatus.Pending, OrderItemStatus.Preparing) or (OrderItemStatus.Preparing, OrderItemStatus.Done)))
         {
             throw new DomainException(StatusSequenceMessage);
@@ -110,6 +130,40 @@ public sealed class Order : Entity
 
         item.Status = target;
         Touch(now);
+    }
+
+    /// <summary>
+    /// Cashier báo đã thu tiền. So tổng khách vừa được báo với tổng thật NGAY LÚC NÀY — đơn có thể
+    /// vừa thêm/huỷ món sau khi thu ngân mở form thu. Gọi lại với cùng <paramref name="paymentId"/>
+    /// (mất phản hồi, thu ngân bấm lại) trả <see cref="MarkPaidOutcome.Ok"/> mà không ghi gì.
+    /// </summary>
+    public MarkPaidOutcome MarkPaid(Guid paymentId, decimal expectedTotal, DateTimeOffset now)
+    {
+        switch (Status)
+        {
+            case OrderStatus.Paid:
+                return PaidPaymentId == paymentId ? MarkPaidOutcome.Ok : MarkPaidOutcome.AlreadyPaid;
+            case OrderStatus.Cancelled:
+                return MarkPaidOutcome.OrderCancelled;
+        }
+
+        if (Total != expectedTotal)
+        {
+            return MarkPaidOutcome.TotalMismatch;
+        }
+
+        Status = OrderStatus.Paid;
+        PaidAt = now;
+        PaidPaymentId = paymentId;
+        Touch(now);
+        Raise(new OrderPaid(
+            Id,
+            ShiftId,
+            paymentId,
+            Total,
+            now,
+            [.. _items.Where(i => i.Status != OrderItemStatus.Cancelled).Select(i => new OrderPaidLine(i.MenuItemId, i.Qty))]));
+        return MarkPaidOutcome.Ok;
     }
 
     public void Cancel(DateTimeOffset now)
@@ -141,8 +195,11 @@ public sealed class Order : Entity
             throw new DomainException(ClosedMessage);
         }
 
-        return _items.SingleOrDefault(i => i.Id == itemId) ?? throw new NotFoundException("Không tìm thấy món trong đơn.");
+        return FindItem(itemId);
     }
+
+    private OrderItem FindItem(Guid itemId) =>
+        _items.SingleOrDefault(i => i.Id == itemId) ?? throw new NotFoundException("Không tìm thấy món trong đơn.");
 
     private void Touch(DateTimeOffset now)
     {
@@ -182,6 +239,21 @@ public sealed class OrderItem
 
     public OrderItemStatus Status { get; internal set; } = OrderItemStatus.Pending;
 }
+
+/// <summary>Đơn đã thu tiền — inventory trừ kho theo <see cref="Lines"/>, reporting cộng doanh thu.</summary>
+[Topic(Topics.OrderPaid)]
+public sealed record OrderPaid(
+    Guid OrderId,
+    Guid ShiftId,
+    Guid PaymentId,
+    decimal Total,
+    DateTimeOffset PaidAt,
+    IReadOnlyList<OrderPaidLine> Lines) : IntegrationEvent
+{
+    public override string PartitionKey => OrderId.ToString();
+}
+
+public sealed record OrderPaidLine(Guid MenuItemId, int Qty);
 
 [Topic(Topics.OrderCancelled)]
 public sealed record OrderCancelled(Guid OrderId, Guid ShiftId, DateTimeOffset CancelledAt) : IntegrationEvent

@@ -1,0 +1,39 @@
+// Đường đồng bộ DUY NHẤT giữa các dịch vụ (spec §4): cashier hỏi ordering "thu đúng số tiền này
+// cho đơn này được không" trong lúc đang giữ transaction thu tiền. Chỉ đi trong mạng Docker (cổng 8092).
+syntax = "proto3";
+
+package fnb.ordering.v1;
+
+option csharp_namespace = "Fnb.Ordering.V1";
+
+service OrderPayments {
+  // Idempotent theo payment_id: gọi lại cùng payment_id sau khi đã thu → ok.
+  // Đơn không tồn tại → gRPC status NOT_FOUND.
+  rpc MarkPaid (MarkPaidRequest) returns (MarkPaidReply);
+}
+
+message MarkPaidRequest {
+  string order_id = 1;       // uuid
+  // Tiền là chuỗi thập phân invariant ("45000.00") — protobuf không có decimal, double làm sai tiền.
+  string expected_total = 2;
+  string payment_id = 3;     // uuid = Idempotency-Key bên cashier
+}
+
+message MarkPaidReply {
+  oneof result {
+    Ok ok = 1;
+    TotalMismatch total_mismatch = 2;
+    AlreadyPaid already_paid = 3;
+    OrderCancelled order_cancelled = 4;
+  }
+}
+
+message Ok {}
+
+message TotalMismatch {
+  string actual_total = 1;   // tổng thật hiện tại, cùng định dạng expected_total
+}
+
+message AlreadyPaid {}
+
+message OrderCancelled {}

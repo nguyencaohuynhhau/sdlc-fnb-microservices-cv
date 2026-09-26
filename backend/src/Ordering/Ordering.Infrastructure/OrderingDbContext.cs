@@ -36,6 +36,9 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Total).HasPrecision(18, 2);
             e.Property(x => x.Version).IsRowVersion();
+
+            // Một payment chỉ thu được một đơn; NULL (chưa thu) không tính trùng.
+            e.HasIndex(x => x.PaidPaymentId).IsUnique();
             e.HasMany(x => x.Items).WithOne().HasForeignKey("OrderId").OnDelete(DeleteBehavior.Cascade);
         });
 

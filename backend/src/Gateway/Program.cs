@@ -51,6 +51,7 @@ builder.Services.AddReverseProxy().LoadFromMemory(
         Route("/api/kitchen/{**rest}", "ordering"),
         Route("/hubs/{**rest}", "ordering"),
         Route("/api/shifts/{**rest}", "cashier"),
+        Route("/api/payments", "cashier"),
     ],
     [.. services.Select(s => new ClusterConfig
     {

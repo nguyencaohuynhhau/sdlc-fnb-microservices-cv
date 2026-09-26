@@ -76,6 +76,14 @@ namespace Ordering.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<Guid?>("PaidPaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("paid_payment_id");
+
                     b.Property<Guid>("ShiftId")
                         .HasColumnType("uuid")
                         .HasColumnName("shift_id");
@@ -107,6 +115,10 @@ namespace Ordering.Infrastructure.Migrations
                     b.HasIndex("Code")
                         .IsUnique()
                         .HasDatabaseName("ix_orders_code");
+
+                    b.HasIndex("PaidPaymentId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_paid_payment_id");
 
                     b.HasIndex("ShiftId")
                         .HasDatabaseName("ix_orders_shift_id");

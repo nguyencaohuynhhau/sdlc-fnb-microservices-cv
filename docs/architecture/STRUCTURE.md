@@ -23,18 +23,20 @@
 
 Mỗi dịch vụ là 4 project theo Clean Architecture; phụ thuộc chỉ đi vào trong
 (`Api → Application → Domain`, `Infrastructure → Application`). Dịch vụ không tham chiếu project của dịch vụ khác —
-nói chuyện qua Kafka (sự kiện) hoặc HTTP qua gateway.
+nói chuyện qua Kafka (sự kiện), HTTP qua gateway, hoặc gRPC nội bộ duy nhất cashier → ordering (`MarkPaid`, cổng 8092).
 
 ```
 src/
 ├── Shared/
-│   ├── Shared.Kernel/      # Entity, DomainException (409/404/400), IntegrationEvent, tên topic Kafka
+│   ├── Protos/             # hợp đồng gRPC (.proto) — ordering sinh server, cashier sinh client
+│   ├── Shared.Kernel/      # Entity, DomainException (409/404/400/422/503), IntegrationEvent, tên topic Kafka
 │   ├── Shared.Messaging/   # outbox (interceptor + publisher nền), inbox + consumer nền cho Kafka
 │   └── Shared.Web/         # JWT, FallbackPolicy [Authorize], ProblemDetails tiếng Việt, /healthz
 ├── Identity/               # đăng nhập, refresh token xoay vòng, khoá tài khoản (Redis)
 ├── Ordering/               # thực đơn (cache Redis), đơn + món, ETag/If-Match, hub SignalR /hubs/orders,
-│                           #   hình chiếu ca từ sự kiện cashier (known_shifts)
-├── Cashier/                # mở/đóng ca; unique index giữ "chỉ một ca mở"
+│                           #   hình chiếu ca từ sự kiện cashier (known_shifts); Api/Grpc = server MarkPaid
+├── Cashier/                # mở/đóng ca + đối chiếu két; thu tiền idempotent (Idempotency-Key),
+│                           #   gọi MarkPaid qua gRPC; unique index giữ "chỉ một ca mở"
 │   └── <Svc>.{Api,Application,Domain,Infrastructure}/   # Infrastructure/Migrations = migration EF Core
 └── Gateway/                # YARP: route, JWT, CORS allowlist, /healthz gộp. Route khai báo trong Program.cs
 tools/Seeder/               # dữ liệu demo, chỉ chạy khi ASPNETCORE_ENVIRONMENT=Development
@@ -52,7 +54,7 @@ Directory.Packages.props    # phiên bản NuGet tập trung
 ```
 src/
 ├── routes/                 # TanStack Router file-based: login, _auth (guard) → pos, kitchen
-├── features/<tính năng>/   # menu, orders, shift, kitchen: component + hook TanStack Query
+├── features/<tính năng>/   # menu, orders, payment, shift, kitchen: component + hook TanStack Query
 ├── lib/                    # apiClient (fetch duy nhất, refresh 401), auth, signalr, online, queryKeys
 ├── stores/ui.ts            # Zustand: chỉ UI state (giỏ đơn nháp)
 ├── components/ui/          # component shadcn/ui

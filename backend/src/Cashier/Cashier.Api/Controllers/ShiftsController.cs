@@ -26,6 +26,6 @@ public sealed class ShiftsController : ControllerBase
 
     [Authorize(Roles = "Cashier,Owner")]
     [HttpPost("{id:guid}/close")]
-    public async Task<IActionResult> Close(Guid id, [FromServices] CloseShiftHandler handler, CancellationToken ct) =>
-        Ok(ShiftResponse.From(await handler.HandleAsync(id, ct)));
+    public async Task<IActionResult> Close(Guid id, CloseShiftRequest req, [FromServices] CloseShiftHandler handler, CancellationToken ct) =>
+        Ok(ShiftSummaryResponse.From(await handler.HandleAsync(id, req.CountedCash!.Value, ct)));
 }
